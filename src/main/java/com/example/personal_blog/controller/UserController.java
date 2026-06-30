@@ -1,5 +1,6 @@
 package com.example.personal_blog.controller;
 
+import com.example.personal_blog.common.Result;
 import com.example.personal_blog.entity.User;
 import com.example.personal_blog.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +22,8 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody User user) {
-        return userService.login(user.getUsername(), user.getPassword());
+    public Result<String> login(@RequestBody User user) {
+        String token = userService.login(user.getUsername(), user.getPassword());
+        return Result.success(token);
     }
 }

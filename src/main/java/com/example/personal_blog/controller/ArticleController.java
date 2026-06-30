@@ -1,5 +1,6 @@
 package com.example.personal_blog.controller;
 
+import com.example.personal_blog.common.Result;
 import com.example.personal_blog.dto.ArticleDTO;
 import com.example.personal_blog.entity.Article;
 import com.example.personal_blog.service.ArticleService;
@@ -23,9 +24,9 @@ public class ArticleController {
 
     // 文章列表
     @GetMapping("/list")
-    public List<Article> list(@RequestParam int page,
-                              @RequestParam int size) {
-        return articleService.list(page, size);
+    public Result<List<Article>> list(@RequestParam int page,
+                                      @RequestParam int size) {
+        return Result.success(articleService.list(page, size));
     }
 
     // 文章详情
