@@ -2,6 +2,7 @@ package com.example.personal_blog.entity;
 
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -20,4 +21,8 @@ public class Article {
     private Integer viewCount;
     private Integer likeCount;
     private LocalDateTime createTime;
+
+    /** 作者名（非数据库字段，通过 JOIN 查询填充） */
+    @TableField(exist = false)
+    private String authorName;
 }

@@ -1,9 +1,11 @@
 package com.example.personal_blog.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.personal_blog.common.Result;
 import com.example.personal_blog.dto.ArticleDTO;
 import com.example.personal_blog.entity.Article;
 import com.example.personal_blog.service.ArticleService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,14 +19,14 @@ public class ArticleController {
 
     // 发布文章
     @PostMapping("/publish")
-    public String publish(@RequestBody ArticleDTO dto) {
+    public String publish(@RequestBody @Valid ArticleDTO dto) {
         articleService.publish(dto);
         return "发布成功";
     }
 
     // 文章列表
     @GetMapping("/list")
-    public Result<List<Article>> list(@RequestParam int page,
+    public Result<Page<Article>> list(@RequestParam int page,
                                       @RequestParam int size) {
         return Result.success(articleService.list(page, size));
     }

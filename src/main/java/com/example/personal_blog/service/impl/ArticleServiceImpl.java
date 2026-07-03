@@ -1,6 +1,6 @@
 package com.example.personal_blog.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.personal_blog.common.BusinessException;
 import com.example.personal_blog.common.ResultCode;
 import com.example.personal_blog.dto.ArticleDTO;
@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 public class ArticleServiceImpl implements ArticleService {
@@ -38,20 +37,17 @@ public class ArticleServiceImpl implements ArticleService {
 
     // 文章分页
     @Override
-    public List<Article> list(int page, int size) {
-        int offset=(page-1)*size;
+    public Page<Article> list(int page, int size) {
+        //使用Mybatis-Plus分页插件进行分页，关联查询作者名
+        Page<Article> objectPage = new Page<>(page, size);
 
-        return articleMapper.selectList(
-                new QueryWrapper<Article>()
-                        .orderByDesc("create_time")
-                        .last("limit " + offset + "," + size)
-        );
+        return articleMapper.selectPageWithAuthor(objectPage);
     }
 
     // 文章详情(浏览量+1)
     @Override
     public Article detail(Long id) {
-        Article article = articleMapper.selectById(id);
+        Article article = articleMapper.selectByIdWithAuthor(id);
         if(article==null){
             throw new RuntimeException("the article is not exists");
         }
