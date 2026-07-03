@@ -1,6 +1,8 @@
 package com.example.personal_blog.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.example.personal_blog.common.BusinessException;
+import com.example.personal_blog.common.ResultCode;
 import com.example.personal_blog.dto.CommentDto;
 import com.example.personal_blog.entity.Article;
 import com.example.personal_blog.entity.Comment;
@@ -42,7 +44,7 @@ public class CommentServiceImpl implements CommentService {
         //保存评论
         int insert = commentMapper.insert(comment);
         if (insert <= 0) {
-            throw new RuntimeException("评论保存失败");
+            throw new BusinessException(ResultCode.NOT_FOUND,"保存失败");
         }
     }
 

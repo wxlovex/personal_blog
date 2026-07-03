@@ -53,4 +53,12 @@ public class Result<T> {
     public static <T> Result<T> fail(ResultCode resultCode) {
         return new Result<>(resultCode.getCode(), resultCode.getMessage(), null);
     }
+
+    public static <T> Result<T> fail(ResultCode resultCode, String message) {
+        return new Result<>(
+                resultCode.getCode(),
+                message,
+                null
+        );
+    }
 }

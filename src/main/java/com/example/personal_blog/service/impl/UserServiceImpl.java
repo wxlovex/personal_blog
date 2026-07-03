@@ -1,6 +1,8 @@
 package com.example.personal_blog.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.example.personal_blog.common.BusinessException;
+import com.example.personal_blog.common.ResultCode;
 import com.example.personal_blog.entity.User;
 import com.example.personal_blog.mapper.UserMapper;
 import com.example.personal_blog.service.UserService;
@@ -40,7 +42,7 @@ public class UserServiceImpl implements UserService {
         );
 
         if (user == null) {
-            throw new RuntimeException("用户名或密码错误");
+            throw new BusinessException(ResultCode.UNAUTHORIZED,"用户名错误");
         }
 
         // 生成JWT

@@ -1,6 +1,8 @@
 package com.example.personal_blog.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.example.personal_blog.common.BusinessException;
+import com.example.personal_blog.common.ResultCode;
 import com.example.personal_blog.dto.ArticleDTO;
 import com.example.personal_blog.entity.Article;
 import com.example.personal_blog.mapper.ArticleMapper;
@@ -64,12 +66,12 @@ public class ArticleServiceImpl implements ArticleService {
     public void delete(Long id) {
         Article article = articleMapper.selectById(id);
         if(article==null){
-            throw new RuntimeException("the article is not exists");
+            throw new BusinessException(ResultCode.NOT_FOUND,"文章不存在");
         }
 
         Long userId = UserContext.getUserId();
         if(!article.getUserId().equals(userId)){
-            throw new RuntimeException("have no permissions to delete");
+            throw new BusinessException(ResultCode.FORBIDDEN,"没有权限删除该文章");
         }
 
         articleMapper.deleteById(id);
