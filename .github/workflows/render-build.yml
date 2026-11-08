@@ -63,7 +63,7 @@ jobs:
         run: |
           docker run -d --name tidb -p 127.0.0.1:4000:4000 -p 127.0.0.1:10080:10080 \
             pingcap/tidb:v8.5.1 --store=unistore --path= --host=0.0.0.0
-          curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:10080/status
+          curl --retry 30 --retry-delay 2 --retry-all-errors --max-time 5 --fail http://127.0.0.1:10080/status
           docker run --rm --network host --entrypoint mysql mysql:8.0 \
             -h127.0.0.1 -P4000 -uroot --ssl-mode=DISABLED \
             -e 'SET GLOBAL tidb_enable_check_constraint=ON; CREATE DATABASE blog_verification CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
