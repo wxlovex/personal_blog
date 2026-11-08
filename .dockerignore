@@ -8,5 +8,4 @@
 **/.env
 **/.env.*
 **/*.log
-database
 docs
