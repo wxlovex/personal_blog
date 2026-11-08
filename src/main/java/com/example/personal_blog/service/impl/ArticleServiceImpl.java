@@ -18,6 +18,7 @@ import com.example.personal_blog.utils.UserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -95,9 +96,10 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public LikeStatus like(Long id, boolean liked) {
         Long userId = UserContext.requireUserId();
+        // 锁住文章后必须读取最新关系，避免 TiDB REPEATABLE READ 使用等待行锁前的旧快照。
         // 对同一文章串行处理点赞、取消和删除；唯一约束提供第二层保障。
         Article article = lock(id);
         QueryWrapper<ArticleLike> query = new QueryWrapper<ArticleLike>()

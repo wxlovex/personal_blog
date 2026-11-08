@@ -1,4 +1,5 @@
 <script setup>
+import { formatTime } from '@/utils/time'
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { articleDetail, articleDelete } from '@/api'
@@ -41,16 +42,7 @@ function goBack() {
   router.push('/')
 }
 
-function formatTime(isoString) {
-  if (!isoString) return ''
-  const d = new Date(isoString)
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
-}
+
 
 onMounted(fetchDetail)
 </script>

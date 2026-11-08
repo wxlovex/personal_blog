@@ -2,6 +2,7 @@
 import json
 import os
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
@@ -12,7 +13,7 @@ OUTPUT.mkdir(parents=True, exist_ok=True)
 with sync_playwright() as p:
     browser = p.chromium.launch(
         executable_path=os.environ['BROWSER_TEST_CHROME'], headless=True)
-    context = browser.new_context()
+    context = browser.new_context(timezone_id='Asia/Shanghai')
     page = context.new_page()
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
@@ -43,6 +44,9 @@ with sync_playwright() as p:
     page.get_by_role('link', name='Deployment browser check').click()
     expect(page.locator('.article-content')).to_contain_text('Article body and summary')
     article_id = int(page.url.rsplit('/', 1)[1])
+    created_at = context.request.get(BASE + '/api/article/detail/' + str(article_id)).json()['data']['createTime']
+    expected_time = (datetime.fromisoformat(created_at) + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M')
+    expect(page.locator('.article-detail-meta')).to_contain_text(expected_time)
     page.reload()
     page.wait_for_load_state('networkidle')
     expect(page.get_by_role('heading', name='Deployment browser check')).to_be_visible()
@@ -91,7 +95,7 @@ with sync_playwright() as p:
     (OUTPUT / 'result.json').write_text(json.dumps({
         'status': 'passed', 'pageErrors': errors,
         'checks': ['registration', 'invalid login', 'login', 'publish', 'summary',
-            'detail refresh', 'comment', 'comment pagination', 'ownership UI',
+            'detail refresh', 'UTC display', 'comment', 'comment pagination', 'ownership UI',
             '403 ownership', '401 authentication', 'API and asset 404', 'delete']
     }, indent=2), encoding='utf-8')
     other.close()
