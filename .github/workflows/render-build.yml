@@ -1,0 +1,50 @@
+name: Verify Render image
+
+on:
+  push:
+    branches: [codex/render-blog]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-root-password
+          MYSQL_DATABASE: personal_blog
+          MYSQL_USER: blog
+          MYSQL_PASSWORD: ci-only-blog-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frontend, run tests, and assemble runtime image
+        run: docker build --tag personal-blog:verify .
+      - name: Initialize disposable MySQL
+        env:
+          MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: docker exec -i "$MYSQL_CONTAINER" mysql -uroot -pci-only-root-password personal_blog < src/main/resources/db/schema.sql
+      - name: Run packaged image against MySQL
+        run: |
+          docker run -d --name blog --network host \
+            -e 'DB_URL=jdbc:mysql://127.0.0.1:3306/personal_blog?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC' \
+            -e DB_USERNAME=blog -e DB_PASSWORD=ci-only-blog-password \
+            -e JWT_SECRET=ci-only-application-secret-at-least-32-bytes \
+            --memory=512m personal-blog:verify
+          curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:8080/api/health
+          curl --fail http://127.0.0.1:8080/login | grep 'id="app"'
+          curl --fail http://127.0.0.1:8080/api/article/list
+      - name: Show runtime logs
+        if: always()
+        run: docker logs blog || true
