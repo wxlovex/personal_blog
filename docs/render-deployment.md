@@ -70,7 +70,8 @@ Runtime 选择 Docker，Dockerfile 为 `./Dockerfile`，构建上下文为仓库
 | `DB_PASSWORD` | 数据库密码 |
 | `JWT_SECRET` | 一次生成、长期保存的随机密钥，至少 32 字节 |
 | `DB_POOL_SIZE` | `5` |
-| `CORS_ALLOWED_ORIGINS` | 留空；当前前后端同域 |
+| `CORS_ALLOWED_ORIGINS` | `https://bounce-club.onrender.com`；限定为本服务的 HTTPS 来源 |
+| `DB_CONNECTION_TIMEOUT_MS` | `30000` |
 
 `PORT` 使用 Render 提供的值。运行镜像设置了适合小内存环境的 JVM 参数；
 实际峰值内存和启动时间仍需以 Render 部署日志为准。

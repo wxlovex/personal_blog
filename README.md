@@ -3,6 +3,9 @@
 Java 17 / Spring Boot 3 / MyBatis-Plus / MySQL 8 的博客。日常前端工作目录为
 `D:\project\personal_blog_vite`；`frontend/` 保存用于 Render 构建的前端源码快照。
 
+公网入口：[访问博客](https://bounce-club.onrender.com)。当前使用新建云数据库，首次访问请注册账号。
+已复用原 bounce-club 免费服务，部署和公网验收记录见 [docs/deployment-status.md](docs/deployment-status.md)。
+
 ## 已实现
 
 - 注册、登录、当前用户查询；BCrypt 密码哈希、JWT 鉴权。

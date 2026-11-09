@@ -1,4 +1,4 @@
-"""Verify the packaged, same-origin blog against a disposable local database only."""
+"""Verify the packaged blog using isolated test accounts and an article removed afterward."""
 import json
 import os
 import time
@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
-BASE = 'http://127.0.0.1:18080'
+BASE = os.environ.get('BLOG_TEST_BASE_URL', 'http://127.0.0.1:18080').rstrip('/')
 OUTPUT = Path(__file__).resolve().parents[1] / 'target' / 'browser-test'
 OUTPUT.mkdir(parents=True, exist_ok=True)
 
@@ -93,7 +93,8 @@ with sync_playwright() as p:
     expect(page.get_by_role('heading', name='Deployment browser check')).to_have_count(0)
     assert not errors, errors
     (OUTPUT / 'result.json').write_text(json.dumps({
-        'status': 'passed', 'pageErrors': errors,
+        'status': 'passed', 'baseUrl': BASE, 'pageErrors': errors,
+        'testUsers': [username, other_username],
         'checks': ['registration', 'invalid login', 'login', 'publish', 'summary',
             'detail refresh', 'UTC display', 'comment', 'comment pagination', 'ownership UI',
             '403 ownership', '401 authentication', 'API and asset 404', 'delete']
