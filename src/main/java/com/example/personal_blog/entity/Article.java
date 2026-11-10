@@ -22,6 +22,9 @@ public class Article {
     private Long likeCount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private Boolean published;
+    private String plazaCategory;
+    private LocalDateTime publishedTime;
     @TableField(exist = false)
     private String authorName;
     @TableField(exist = false)

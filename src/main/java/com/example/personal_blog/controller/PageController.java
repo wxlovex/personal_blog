@@ -8,7 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PageController {
     @PublicEndpoint(ignoreToken = true)
-    @GetMapping({"/", "/login", "/register", "/publish", "/article/{id:[0-9]+}"})
+    @GetMapping({"/", "/about", "/login", "/register", "/publish", "/plaza", "/plaza/{id:[0-9]+}", "/article/{id:[0-9]+}", "/article/{id:[0-9]+}/edit",
+            "/account/security", "/account/verify-email", "/forgot-password", "/reset-password"})
     public String index() {
         return "forward:/index.html";
     }

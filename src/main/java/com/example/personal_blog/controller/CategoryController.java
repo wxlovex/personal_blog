@@ -1,6 +1,5 @@
 package com.example.personal_blog.controller;
 
-import com.example.personal_blog.common.PublicEndpoint;
 import com.example.personal_blog.common.Result;
 import com.example.personal_blog.dto.CategoryDTO;
 import com.example.personal_blog.entity.Category;
@@ -19,7 +18,6 @@ import java.util.List;
 public class CategoryController {
     private final CategoryService service;
 
-    @PublicEndpoint
     @GetMapping("/list")
     public Result<List<Category>> list() {
         return Result.success(service.list());

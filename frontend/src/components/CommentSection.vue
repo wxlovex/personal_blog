@@ -1,15 +1,11 @@
 <script setup>
-import { formatTime } from '@/utils/time'
-import { ref, onMounted } from 'vue'
+import { ref, watch } from 'vue'
+import { formatTime, utcTimestamp } from '@/utils/time'
 import { commentList, commentPublish } from '@/api'
-
-const props = defineProps({
-  articleId: {
-    type: [Number, String],
-    required: true,
-  },
-})
-
+import { useAuth } from '@/composables/useAuth'
+import BlogIcon from './BlogIcon.vue'
+const props = defineProps({ articleId: { type: [Number, String], required: true } })
+const { isLoggedIn } = useAuth()
 const comments = ref([])
 const page = ref(1)
 const total = ref(0)
@@ -18,205 +14,67 @@ const error = ref('')
 const newComment = ref('')
 const submitting = ref(false)
 const submitError = ref('')
-
+let requestId = 0
 async function fetchComments(append = false) {
+  if (append && loading.value) return
+  const id = ++requestId
   loading.value = true
   error.value = ''
   try {
     const nextPage = append ? page.value + 1 : 1
-    const res = await commentList(props.articleId, nextPage)
-    const result = res.data.data
-    comments.value = append ? [...comments.value, ...result.records] : result.records
+    const { data } = await commentList(props.articleId, nextPage)
+    if (id !== requestId) return
+    comments.value = append ? [...comments.value, ...data.data.records] : data.data.records
     page.value = nextPage
-    total.value = result.total
-  } catch (e) {
-    error.value = e.response?.data?.message || e.message || 'Failed to load comments'
-  } finally {
-    loading.value = false
-  }
+    total.value = data.data.total
+  } catch (e) { if (id === requestId) error.value = e.response?.data?.message || '补记暂时没能加载，请稍后再试。' }
+  finally { if (id === requestId) loading.value = false }
 }
-
 async function handleSubmit() {
   const content = newComment.value.trim()
-  if (!content) return
-
+  if (!content || submitting.value || !isLoggedIn.value) return
   submitting.value = true
   submitError.value = ''
-  try {
-    await commentPublish({ articleId: Number(props.articleId), content })
-    newComment.value = ''
-    await fetchComments()
-  } catch (e) {
-    submitError.value = e.response?.data?.message || e.message || 'Failed to publish comment'
-  } finally {
-    submitting.value = false
-  }
+  try { await commentPublish({ articleId: Number(props.articleId), content }); newComment.value = ''; await fetchComments() }
+  catch (e) { submitError.value = e.response?.data?.message || '补记未能保存，请稍后重试。' }
+  finally { submitting.value = false }
 }
-
-
-
-onMounted(() => fetchComments())
+watch(() => props.articleId, () => { comments.value = []; newComment.value = ''; submitError.value = ''; fetchComments() }, { immediate: true })
 </script>
-
 <template>
-  <section class="comment-section">
-    <h2 class="comment-heading">
-      Comments
-      <span v-if="total" class="comment-count">{{ total }}</span>
-    </h2>
-
-    <!-- Comment form -->
-    <div class="comment-form">
-      <textarea
-        v-model="newComment"
-        class="form-input comment-textarea"
-        placeholder="Share your thoughts..."
-        rows="3"
-        :disabled="submitting"
-      ></textarea>
-      <div class="comment-form-footer">
-        <p v-if="submitError" class="error-msg">{{ submitError }}</p>
-        <button
-          class="btn btn-primary comment-submit"
-          :disabled="submitting || !newComment.trim()"
-          @click="handleSubmit"
-        >
-          {{ submitting ? 'Posting...' : 'Post Comment' }}
-        </button>
-      </div>
+  <section class="comment-section" aria-labelledby="comment-heading">
+    <div class="section-label"><h2 id="comment-heading">后来的补记<span v-if="total" class="comment-count">{{ total }}</span></h2><span>也只对自己可见</span></div>
+    <form v-if="isLoggedIn" class="comment-form" @submit.prevent="handleSubmit">
+      <label for="new-comment" class="sr-only">写下补记</label>
+      <textarea id="new-comment" v-model="newComment" class="form-input comment-textarea" placeholder="回看这一页，有了什么新的想法？" rows="3" maxlength="2000" :disabled="submitting" required></textarea>
+      <div class="comment-form-footer"><span class="form-hint">{{ newComment.length }} / 2,000</span><button type="submit" class="btn btn-primary btn-sm" :disabled="submitting || !newComment.trim()">{{ submitting ? '正在保存…' : '存下补记' }}<BlogIcon name="arrow-right" /></button></div>
+    </form>
+    <p v-if="submitError" class="error-msg" role="alert">{{ submitError }}</p>
+    <p v-if="loading && !comments.length" class="comment-loading" role="status">正在翻开这些补记…</p>
+    <div v-if="error" class="comment-error" role="alert"><p class="error-msg">{{ error }}</p><button class="btn btn-sm" @click="fetchComments(comments.length > 0)">重新加载补记</button></div>
+    <div v-if="comments.length" class="comment-list">
+      <article v-for="comment in comments" :key="comment.id" class="comment-item"><div class="comment-body"><div class="comment-meta"><span>补记</span><time :datetime="utcTimestamp(comment.createTime)">{{ formatTime(comment.createTime) }}</time></div><p class="comment-content">{{ comment.content }}</p></div></article>
     </div>
-
-    <!-- Loading -->
-    <div v-if="loading" class="comment-loading">Loading comments...</div>
-
-    <!-- Error -->
-    <p v-if="error" class="error-msg">{{ error }}</p>
-
-    <!-- Comment list -->
-    <div v-if="!loading && !error" class="comment-list">
-      <div v-if="!comments.length" class="comment-empty">
-        No comments yet. Be the first to share your thoughts!
-      </div>
-
-      <div
-        v-for="comment in comments"
-        :key="comment.id"
-        class="comment-item"
-      >
-        <div class="comment-meta text-muted">
-          <span>{{ formatTime(comment.createTime) }}</span>
-        </div>
-        <p class="comment-content">{{ comment.content }}</p>
-      </div>
-    </div>
-    <button v-if="comments.length < total" class="btn btn-secondary"
-      :disabled="loading" @click="fetchComments(true)">
-      {{ loading ? 'Loading...' : 'Load more comments' }}
-    </button>
+    <p v-else-if="!loading && !error" class="comment-empty">还没有补记。日后有新想法，可以在这里继续。</p>
+    <button v-if="comments.length < total && !error" class="btn btn-sm load-more" :disabled="loading" @click="fetchComments(true)">{{ loading ? '正在加载…' : '翻开更多补记' }}</button>
   </section>
 </template>
-
 <style scoped>
-.comment-section {
-  margin-top: 48px;
-  padding-top: 28px;
-  border-top: 1px solid var(--border);
-}
-
-.comment-heading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.comment-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border-radius: 12px;
-}
-
-/* ── Form ── */
-
-.comment-form {
-  margin-bottom: 28px;
-}
-
-.comment-textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-.comment-form-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 10px;
-  min-height: 32px;
-}
-
-.comment-form-footer .error-msg {
-  margin-top: 0;
-  margin-right: auto;
-}
-
-/* ── Loading ── */
-
-.comment-loading {
-  text-align: center;
-  padding: 32px 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-/* ── Empty state ── */
-
-.comment-empty {
-  text-align: center;
-  padding: 32px 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-/* ── Comment items ── */
-
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.comment-item {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.comment-item:first-child {
-  padding-top: 0;
-}
-
-.comment-item:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.comment-meta {
-  margin-bottom: 6px;
-  font-size: 0.8rem;
-}
-
-.comment-content {
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-}
+.comment-section { margin-top: 30px; }
+.comment-count { margin-left: 10px; color: var(--accent); font: .7rem/1 var(--mono); }
+.comment-form { margin-block: 25px 12px; }
+.comment-textarea { min-height: 118px; padding: 15px 18px; font-size: .875rem; }
+.comment-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+.comment-login { display: flex; align-items: center; gap: 10px; background: var(--bg-secondary); padding: 20px; margin-block: 24px; color: var(--text-muted); font-size: .85rem; }
+.comment-login a { text-decoration: underline; text-underline-offset: 3px; margin-right: 3px; }
+.comment-item { display: flex; align-items: flex-start; gap: 14px; padding-block: 26px; border-bottom: 1px solid var(--border); }
+.comment-avatar { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border: 1px solid var(--border); border-radius: 50%; color: var(--accent); font: .8rem/1 var(--serif); }
+.comment-body { flex: 1; min-width: 0; }
+.comment-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; font-size: .7rem; color: var(--text-muted); margin-bottom: 7px; }
+.comment-author { color: var(--text-h); font-size: .8rem; }
+.comment-content { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; line-height: 1.9; }
+.comment-empty, .comment-loading { padding-block: 25px; color: var(--text-muted); font-size: .8rem; text-align: center; }
+.comment-error { margin-top: 20px; display: grid; justify-items: start; gap: 15px; }
+.load-more { margin-top: 22px; }
+@media (max-width: 420px) { .comment-item { gap: 10px; } }
 </style>

@@ -1,7 +1,6 @@
 package com.example.personal_blog.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.example.personal_blog.common.PublicEndpoint;
 import com.example.personal_blog.common.Result;
 import com.example.personal_blog.dto.CommentDto;
 import com.example.personal_blog.entity.Comment;
@@ -24,7 +23,6 @@ public class CommentController {
         return Result.success(commentService.publish(dto));
     }
 
-    @PublicEndpoint
     @GetMapping("/{articleId}")
     public Result<Page<Comment>> list(@PathVariable @Positive Long articleId,
             @RequestParam(defaultValue = "1") @Min(1) int page,

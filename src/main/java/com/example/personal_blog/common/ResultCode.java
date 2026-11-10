@@ -11,7 +11,11 @@ public enum ResultCode {
 
     CONFLICT(409,"资源冲突"),
 
+    GONE(410,"该功能已停用"),
+
     FAIL(500,"服务器异常"),
+
+    UNAVAILABLE(503,"服务暂不可用"),
 
     UNAUTHORIZED(401,"未登录"),
 

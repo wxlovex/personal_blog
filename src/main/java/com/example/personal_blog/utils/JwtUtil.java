@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.UUID;
+import com.auth0.jwt.interfaces.DecodedJWT;
 
 @Component
 public class JwtUtil {
@@ -31,18 +33,27 @@ public class JwtUtil {
     public String generateToken(Long userId, String username) {
         Instant now = Instant.now();
         return JWT.create().withIssuer("personal-blog")
+                .withJWTId(UUID.randomUUID().toString())
                 .withClaim("userId", userId).withClaim("username", username)
                 .withIssuedAt(now).withExpiresAt(now.plusSeconds(ttlSeconds)).sign(algorithm);
     }
 
     public Long getUserId(String token) {
+        return verify(token).userId();
+    }
+
+    public record Identity(Long userId, String sessionId, Instant expiresAt) {}
+
+    public Identity verify(String token) {
         try {
-            Long id = JWT.require(algorithm).withIssuer("personal-blog").build()
-                    .verify(token).getClaim("userId").asLong();
-            if (id == null || id <= 0) {
+            DecodedJWT decoded = JWT.require(algorithm).withIssuer("personal-blog").build().verify(token);
+            Long id = decoded.getClaim("userId").asLong();
+            String sessionId = decoded.getId();
+            if (id == null || id <= 0 || sessionId == null || sessionId.length() != 36
+                    || decoded.getExpiresAtAsInstant() == null) {
                 throw new BusinessException(ResultCode.UNAUTHORIZED, "登录凭证无效或已过期");
             }
-            return id;
+            return new Identity(id, sessionId, decoded.getExpiresAtAsInstant());
         } catch (JWTVerificationException | IllegalArgumentException e) {
             throw new BusinessException(ResultCode.UNAUTHORIZED, "登录凭证无效或已过期");
         }

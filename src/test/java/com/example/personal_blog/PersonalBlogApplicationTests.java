@@ -138,35 +138,110 @@ class PersonalBlogApplicationTests {
     }
 
     @Test
-    void guestsCanBrowseButCannotWriteAndContextDoesNotLeak() throws Exception {
-        long id = article(alice, "Guest article", null);
-        send(get("/article/list"), null, null).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.records[0].authorName").value("alice"))
-                .andExpect(jsonPath("$.data.records[0].liked").value(false));
-        send(get("/article/detail/" + id), null, null).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content").value("正文内容"))
-                .andExpect(jsonPath("$.data.viewCount").value(1));
-        send(get("/category/list"), null, null).andExpect(status().isOk());
-        send(get("/article/ranking"), null, null).andExpect(status().isOk());
-        send(post("/article/publish"), null, articleBody("Denied", null)).andExpect(status().isUnauthorized());
-        send(put("/article/" + id + "/like"), null, null).andExpect(status().isUnauthorized());
+    void privateReadsRequireLoginAndDoNotLeakContext() throws Exception {
+        long id = article(alice, "Private diary", null);
+        for (String prefix : List.of("", "/api")) {
+            for (String path : List.of("/article/list", "/article/detail/" + id, "/comment/" + id,
+                    "/category/list", "/article/ranking", "/article/subscriptions",
+                    "/user/subscriptions", "/user/" + alice.id() + "/subscription")) {
+                send(get(prefix + path), null, null).andExpect(status().isUnauthorized())
+                        .andExpect(header().string("Cache-Control", "no-store"));
+            }
+        }
         send(get("/user/me"), alice, null).andExpect(status().isOk());
         send(get("/user/me"), null, null).andExpect(status().isUnauthorized());
         assertThat(UserContext.getUserId()).isNull();
     }
 
     @Test
-    void classificationSupportsOwnershipUniquenessAndCounts() throws Exception {
-        long category = category(alice, "Java");
-        send(post("/category"), bob, Map.of("name", " Java ")).andExpect(status().isConflict());
-        send(put("/category/" + category), bob, Map.of("name", "Hijacked")).andExpect(status().isForbidden());
-        send(delete("/category/" + category), bob, null).andExpect(status().isForbidden());
-        send(put("/category/" + category), alice, Map.of("name", "Backend", "description", "Server side"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.name").value("Backend"));
-        article(bob, "Classified", category);
-        send(get("/category/list"), null, null).andExpect(jsonPath("$.data[0].articleCount").value(1));
+    void privateListSearchFiltersAndPaginationNeverIncludeOtherAccounts() throws Exception {
+        long category = category(alice, "生活");
+        long expected = article(alice, "A quiet morning", category);
+        article(alice, "Another page", null);
+        article(bob, "A quiet morning secret", null);
+        send(get("/api/article/list").param("keyword", "quiet").param("categoryId", "" + category), alice, null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value(expected))
+                .andExpect(jsonPath("$.data.records[0].summary").value("正文内容"))
+                .andExpect(jsonPath("$.data.records[0].content").isEmpty())
+                .andExpect(header().string("Cache-Control", "no-store"));
+        send(get("/article/list").param("page", "2").param("size", "1"), alice, null)
+                .andExpect(jsonPath("$.data.total").value(2))
+                .andExpect(jsonPath("$.data.records.length()").value(1));
+        send(get("/article/list").param("authorId", "" + bob.id()), alice, null)
+                .andExpect(jsonPath("$.data.total").value(0));
+        send(get("/article/list").param("keyword", "secret"), alice, null)
+                .andExpect(jsonPath("$.data.total").value(0));
+        send(get("/article/list").param("page", "99"), alice, null)
+                .andExpect(jsonPath("$.data.records").isEmpty());
+        send(get("/article/list"), eve, null).andExpect(jsonPath("$.data.total").value(0));
+    }
+
+    @Test
+    void diaryOrderUsesCreationTimeThenIdAndEditingDoesNotMoveOldEntries() throws Exception {
+        long first = article(alice, "First entry", null);
+        long second = article(alice, "Second entry", null);
+        long latest = article(alice, "Latest entry", null);
+        jdbc.update("UPDATE article SET create_time = '2026-01-01 00:00:00' WHERE id IN (?, ?)", first, second);
+        jdbc.update("UPDATE article SET create_time = '2026-01-02 00:00:00' WHERE id = ?", latest);
+        send(put("/api/article/" + first), alice, Map.of("title", "Edited first entry", "content", "Updated"))
+                .andExpect(status().isOk());
+        send(get("/api/article/list").param("size", "2"), alice, null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(3))
+                .andExpect(jsonPath("$.data.records[0].id").value(latest))
+                .andExpect(jsonPath("$.data.records[1].id").value(second));
+        send(get("/api/article/list").param("size", "2").param("page", "2"), alice, null)
+                .andExpect(jsonPath("$.data.records[0].id").value(first));
+    }
+
+    @Test
+    void titleSearchTreatsWildcardsLiterallyAndDoesNotSearchBody() throws Exception {
+        long literal = article(alice, "100%_日常", null);
+        send(post("/api/article/publish"), alice, Map.of("title", "Plain title", "content", "100%_日常"))
+                .andExpect(status().isOk());
+        send(get("/api/article/list").param("keyword", " %_ "), alice, null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.records[0].id").value(literal));
+    }
+
+    @Test
+    void foreignAndMissingDiaryIdsAreIndistinguishableAndCannotBeModified() throws Exception {
+        long id = article(alice, "Do not disclose", null);
+        for (long target : List.of(id, 999999L)) {
+            send(get("/api/article/detail/" + target), bob, null).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("记录不存在")).andExpect(jsonPath("$.data").isEmpty());
+            send(put("/api/article/" + target), bob, articleBody("Intrusion", null))
+                    .andExpect(status().isNotFound());
+            send(delete("/api/article/" + target), bob, null).andExpect(status().isNotFound());
+            send(get("/api/comment/" + target), bob, null).andExpect(status().isNotFound());
+            send(post("/api/comment/publish"), bob, Map.of("articleId", target, "content", "Intrusion"))
+                    .andExpect(status().isNotFound());
+        }
+        send(get("/article/detail/" + id), alice, null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("Do not disclose"))
+                .andExpect(jsonPath("$.data.viewCount").value(0));
+        assertThat(counter(id, "view_count")).isZero();
+        assertThat(count("comment")).isZero();
+    }
+
+    @Test
+    void categoriesArePrivateAndNamesAreUniqueOnlyWithinAnAccount() throws Exception {
+        long category = category(alice, "生活");
+        category(bob, "生活");
+        send(post("/category"), alice, Map.of("name", " 生活 ")).andExpect(status().isConflict());
+        send(put("/category/" + category), bob, Map.of("name", "Intrusion")).andExpect(status().isNotFound());
+        send(delete("/category/" + category), bob, null).andExpect(status().isNotFound());
+        send(post("/article/publish"), bob, articleBody("Foreign category", category))
+                .andExpect(status().isNotFound());
+        article(alice, "Classified", category);
+        send(get("/category/list"), alice, null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].userId").value(alice.id()))
+                .andExpect(jsonPath("$.data[0].articleCount").value(1));
+        send(get("/category/list"), bob, null)
+                .andExpect(jsonPath("$.data[0].articleCount").value(0));
         send(delete("/category/" + category), alice, null).andExpect(status().isConflict());
-        send(post("/category"), alice, Map.of("name", "   ")).andExpect(status().isBadRequest());
+        send(post("/category"), alice, Map.of("name", " ")).andExpect(status().isBadRequest());
     }
 
     @Test
@@ -175,57 +250,97 @@ class PersonalBlogApplicationTests {
         send(delete("/category/" + category), alice, null).andExpect(status().isOk());
         send(post("/article/publish"), alice, articleBody("Invalid category", category))
                 .andExpect(status().isNotFound());
-        send(delete("/category/" + category), alice, null).andExpect(status().isNotFound());
     }
 
     @Test
-    void articleEditingPreservesCountersAndCanClearCategory() throws Exception {
+    void categoryCanBeAssignedMovedAndClearedWithoutRewritingArticleText() throws Exception {
+        long first = category(alice, "生活");
+        long second = category(alice, "读书");
+        long id = article(alice, "Original title", null);
+        String created = body(send(get("/article/detail/" + id), alice, null)).at("/data/createTime").asText();
+        jdbc.update("UPDATE article SET view_count = 9, like_count = 3 WHERE id = ?", id);
+        for (long categoryId : List.of(first, second)) {
+            send(patch("/api/article/" + id + "/category"), alice,
+                    Map.of("categoryId", categoryId, "title", "Must be ignored", "content", "Must be ignored"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.data.categoryId").value(categoryId))
+                    .andExpect(jsonPath("$.data.title").value("Original title"))
+                    .andExpect(jsonPath("$.data.content").value("正文内容"))
+                    .andExpect(jsonPath("$.data.createTime").value(created))
+                    .andExpect(jsonPath("$.data.viewCount").value(9))
+                    .andExpect(jsonPath("$.data.likeCount").value(3));
+        }
+        Map<Long, Long> categoryCounts = new HashMap<>();
+        body(send(get("/category/list"), alice, null).andExpect(status().isOk())).at("/data")
+                .forEach(category -> categoryCounts.put(category.get("id").asLong(), category.get("articleCount").asLong()));
+        assertThat(categoryCounts).containsEntry(first, 0L).containsEntry(second, 1L);
+        send(patch("/article/" + id + "/category"), alice, Collections.singletonMap("categoryId", null))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.categoryId").isEmpty())
+                .andExpect(jsonPath("$.data.content").value("正文内容"));
+        send(delete("/category/" + second), alice, null).andExpect(status().isOk());
+    }
+
+    @Test
+    void changingCategoryRequiresOwnershipOfBothArticleAndCategory() throws Exception {
+        long mine = category(alice, "Mine");
+        long foreign = category(bob, "Foreign");
+        long id = article(alice, "Private", mine);
+        mvc.perform(options("/api/article/" + id + "/category").header("Origin", "http://127.0.0.1:5173")
+                        .header("Access-Control-Request-Method", "PATCH")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://127.0.0.1:5173"));
+        send(patch("/api/article/" + id + "/category"), null, Map.of("categoryId", mine))
+                .andExpect(status().isUnauthorized());
+        send(patch("/api/article/" + id + "/category"), bob, Map.of("categoryId", foreign))
+                .andExpect(status().isNotFound());
+        for (long target : List.of(foreign, 999999L)) {
+            send(patch("/api/article/" + id + "/category"), alice, Map.of("categoryId", target))
+                    .andExpect(status().isNotFound());
+        }
+        send(patch("/api/article/999999/category"), alice, Map.of("categoryId", mine))
+                .andExpect(status().isNotFound());
+        for (Object invalid : List.of(-1, 0, "not-an-id")) {
+            send(patch("/api/article/" + id + "/category"), alice, Map.of("categoryId", invalid))
+                    .andExpect(status().isBadRequest());
+        }
+        send(get("/article/detail/" + id), alice, null)
+                .andExpect(jsonPath("$.data.categoryId").value(mine));
+    }
+
+    @Test
+    void titleIsOptionalAndDerivedFromTheFirstLineWithoutBreakingEmoji() throws Exception {
+        send(post("/api/article/publish"), alice, Map.of("content", "今天的小事\n第二段内容"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("今天的小事"));
+        send(post("/api/article/publish"), alice, Map.of("title", " ", "content", "x".repeat(49) + "🌱"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("x".repeat(49)));
+        send(post("/api/article/publish"), alice, Map.of("content", " "))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void ownDiaryCanBeEditedAndLegacyCountersArePreservedWithoutTrackingReads() throws Exception {
         long category = category(alice, "Tech");
         long id = article(alice, "Original", category);
-        send(put("/article/" + id + "/like"), bob, null).andExpect(status().isOk());
-        send(get("/article/detail/" + id), null, null).andExpect(status().isOk());
-        send(put("/article/" + id), bob, articleBody("Intrusion", null)).andExpect(status().isForbidden());
-        send(put("/article/" + id), alice, articleBody("Edited", null)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.title").value("Edited"))
+        jdbc.update("UPDATE article SET view_count = 7, like_count = 2 WHERE id = ?", id);
+        send(get("/article/detail/" + id), alice, null).andExpect(status().isOk());
+        send(put("/article/" + id), alice, Map.of("content", "新的第一行\n新的正文"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("新的第一行"))
                 .andExpect(jsonPath("$.data.categoryId").isEmpty())
-                .andExpect(jsonPath("$.data.viewCount").value(1))
-                .andExpect(jsonPath("$.data.likeCount").value(1));
+                .andExpect(jsonPath("$.data.viewCount").value(7))
+                .andExpect(jsonPath("$.data.likeCount").value(2));
         send(delete("/category/" + category), alice, null).andExpect(status().isOk());
-    }
-
-    @Test
-    void searchFiltersAndPaginationWorkTogether() throws Exception {
-        long java = category(alice, "Java");
-        long life = category(bob, "Life");
-        long expected = article(alice, "Java concurrency", java);
-        article(bob, "Java basics", java);
-        article(alice, "Travel diary", life);
-        send(get("/article/list").param("categoryId", "" + java).param("authorId", "" + alice.id())
-                        .param("keyword", "concurrency"), null, null)
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.records[0].id").value(expected))
-                .andExpect(jsonPath("$.data.records[0].summary").value("正文内容"))
-                .andExpect(jsonPath("$.data.records[0].content").isEmpty());
-        send(get("/article/list").param("page", "2").param("size", "2"), null, null)
-                .andExpect(jsonPath("$.data.records.length()").value(1));
-        send(get("/article/list").param("page", "99"), null, null)
-                .andExpect(jsonPath("$.data.records").isEmpty());
     }
 
     @Test
     void paginationAndBodyValidationReturn400() throws Exception {
         for (String url : List.of("/article/list?page=0", "/article/list?size=101",
                 "/article/list?size=-1", "/article/list?categoryId=-1",
-                "/article/list?page=abc", "/article/ranking?limit=0",
-                "/article/ranking?limit=101", "/article/ranking?sort=unexpected",
-                "/article/detail/-1")) {
-            send(get(url), null, null).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
+                "/article/list?page=abc", "/article/detail/-1")) {
+            send(get(url), alice, null).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
         }
-        send(post("/article/publish"), alice, Map.of("title", " ", "content", "text"))
-                .andExpect(status().isBadRequest());
         send(post("/article/publish"), alice, Map.of("title", "T".repeat(51), "content", "text"))
                 .andExpect(status().isBadRequest());
-        send(post("/comment/publish"), alice, Map.of("content", "missing article"))
+        send(post("/comment/publish"), alice, Map.of("content", "missing diary"))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/user/login").contentType("application/json").content("{bad"))
                 .andExpect(status().isBadRequest());
@@ -233,95 +348,28 @@ class PersonalBlogApplicationTests {
     }
 
     @Test
-    void likesAreIdempotentAndPersonalized() throws Exception {
-        long id = article(alice, "Like me", null);
-        for (int i = 0; i < 3; i++) {
-            send(put("/article/" + id + "/like"), bob, null).andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.liked").value(true))
-                    .andExpect(jsonPath("$.data.likeCount").value(1));
-        }
-        assertThat(count("article_like")).isEqualTo(1);
-        send(get("/article/list"), bob, null).andExpect(jsonPath("$.data.records[0].liked").value(true));
-        send(get("/article/list"), eve, null).andExpect(jsonPath("$.data.records[0].liked").value(false));
-        send(get("/article/ranking?sort=likes"), bob, null).andExpect(jsonPath("$.data[0].liked").value(true));
-        for (int i = 0; i < 3; i++) {
-            send(delete("/article/" + id + "/like"), bob, null).andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.liked").value(false))
-                    .andExpect(jsonPath("$.data.likeCount").value(0));
-        }
-        assertThat(count("article_like")).isZero();
-    }
-
-    @Test
-    void databaseRejectsDuplicateLikeRelations() throws Exception {
-        long id = article(alice, "Unique like", null);
-        send(put("/article/" + id + "/like"), bob, null).andExpect(status().isOk());
-        assertThatThrownBy(() -> jdbc.update(
-                "INSERT INTO article_like(article_id,user_id,create_time) VALUES(?,?,CURRENT_TIMESTAMP)", id, bob.id()))
-                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
-    }
-
-    @Test
-    void rankingUsesCountsAndSupportsCategoryAndLimit() throws Exception {
-        long category = category(alice, "Rank");
-        long popular = article(alice, "Many views", category);
-        long loved = article(bob, "Many likes", category);
-        long other = article(eve, "Other category", null);
-        for (int i = 0; i < 3; i++) send(get("/article/detail/" + popular), null, null).andExpect(status().isOk());
-        send(put("/article/" + loved + "/like"), alice, null).andExpect(status().isOk());
-        send(put("/article/" + loved + "/like"), eve, null).andExpect(status().isOk());
-        send(put("/article/" + other + "/like"), bob, null).andExpect(status().isOk());
-        send(get("/article/ranking?sort=views&limit=1"), null, null)
-                .andExpect(jsonPath("$.data.length()").value(1)).andExpect(jsonPath("$.data[0].id").value(popular));
-        send(get("/article/ranking?sort=likes&categoryId=" + category), null, null)
-                .andExpect(jsonPath("$.data.length()").value(2)).andExpect(jsonPath("$.data[0].id").value(loved));
-        // Listing and ranking themselves must not increase page views.
-        assertThat(counter(popular, "view_count")).isEqualTo(3);
-    }
-
-    @Test
-    void rankingTiesHaveDeterministicIdOrder() throws Exception {
-        long first = article(alice, "First", null);
-        long second = article(alice, "Second", null);
-        jdbc.update("UPDATE article SET create_time = '2026-01-01 00:00:00'");
-        send(get("/article/ranking"), null, null).andExpect(jsonPath("$.data[0].id").value(second))
-                .andExpect(jsonPath("$.data[1].id").value(first));
-    }
-
-    @Test
-    void commentsIncludeAuthorAndSupportPaginationAndModeration() throws Exception {
-        long id = article(alice, "Comments", null);
-        long comment = body(send(post("/comment/publish"), bob, Map.of("articleId", id, "content", "Hello"))
+    void supplementaryNotesAreOwnerOnlyAndHideHistoricalForeignComments() throws Exception {
+        long id = article(alice, "A private page", null);
+        long note = body(send(post("/comment/publish"), alice, Map.of("articleId", id, "content", "My later thought"))
                 .andExpect(status().isOk())).at("/data/id").asLong();
-        send(get("/comment/" + id), null, null).andExpect(status().isOk())
+        jdbc.update("INSERT INTO comment(article_id,user_id,content,create_time) VALUES(?,?,?,CURRENT_TIMESTAMP)",
+                id, bob.id(), "Historical public comment");
+        send(get("/comment/" + id), alice, null).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.records[0].authorName").value("bob"));
-        send(delete("/comment/" + comment), eve, null).andExpect(status().isForbidden());
-        send(delete("/comment/" + comment), alice, null).andExpect(status().isOk());
-        assertThat(count("comment")).isZero();
+                .andExpect(jsonPath("$.data.records[0].content").value("My later thought"));
+        send(get("/comment/" + id), bob, null).andExpect(status().isNotFound());
+        send(delete("/comment/" + note), bob, null).andExpect(status().isNotFound());
+        send(delete("/comment/" + note), alice, null).andExpect(status().isOk());
     }
 
     @Test
-    void authorCanDeleteOwnCommentAndMissingResourcesAre404() throws Exception {
-        long id = article(alice, "Comment owner", null);
-        long comment = body(send(post("/comment/publish"), bob, Map.of("articleId", id, "content", "Hi"))
-                .andExpect(status().isOk())).at("/data/id").asLong();
-        send(delete("/comment/" + comment), bob, null).andExpect(status().isOk());
-        for (String path : List.of("/article/detail/999999", "/comment/999999")) {
-            send(get(path), null, null).andExpect(status().isNotFound());
-        }
-        send(put("/article/999999/like"), alice, null).andExpect(status().isNotFound());
-        send(post("/comment/publish"), alice, Map.of("articleId", 999999, "content", "Missing"))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void deletingArticleChecksOwnershipAndCleansRelations() throws Exception {
+    void deletingOwnedDiaryCleansNotesAndHistoricalLikes() throws Exception {
         long id = article(alice, "Delete me", null);
-        send(put("/article/" + id + "/like"), bob, null).andExpect(status().isOk());
-        send(post("/comment/publish"), bob, Map.of("articleId", id, "content", "Comment"))
+        jdbc.update("INSERT INTO article_like(article_id,user_id,create_time) VALUES(?,?,CURRENT_TIMESTAMP)",
+                id, bob.id());
+        send(post("/comment/publish"), alice, Map.of("articleId", id, "content", "A note"))
                 .andExpect(status().isOk());
-        send(delete("/article/" + id), bob, null).andExpect(status().isForbidden());
+        send(delete("/article/" + id), bob, null).andExpect(status().isNotFound());
         send(delete("/article/" + id), alice, null).andExpect(status().isOk());
         assertThat(count("article")).isZero();
         assertThat(count("article_like")).isZero();
@@ -329,54 +377,61 @@ class PersonalBlogApplicationTests {
     }
 
     @Test
-    void concurrentViewIncrementsAreNotLost() throws Exception {
-        long id = article(alice, "Concurrent views", null);
-        parallel(40, i -> articleService.detail(id));
-        assertThat(counter(id, "view_count")).isEqualTo(40);
-    }
-
-    @Test
-    void concurrentRetriesAndDifferentUsersKeepLikeCountsConsistent() throws Exception {
-        long id = article(alice, "Concurrent likes", null);
-        long[] users = {alice.id(), bob.id(), eve.id()};
-        parallel(30, i -> {
-            UserContext.setUserId(users[i % users.length]);
-            try { return articleService.like(id, true); }
-            finally { UserContext.clear(); }
+    void serviceAndConcurrentReadsEnforceOwnershipWithoutChangingCounters() throws Exception {
+        long id = article(alice, "Concurrent private reads", null);
+        assertThatThrownBy(() -> articleService.detail(id)).isInstanceOf(BusinessException.class);
+        parallel(20, i -> {
+            UserContext.setUserId(i % 2 == 0 ? alice.id() : bob.id());
+            try {
+                if (i % 2 == 0) assertThat(articleService.detail(id).getTitle()).isEqualTo("Concurrent private reads");
+                else assertThatThrownBy(() -> articleService.detail(id)).isInstanceOf(BusinessException.class)
+                        .extracting(error -> ((BusinessException) error).getResultCode()).isEqualTo(com.example.personal_blog.common.ResultCode.NOT_FOUND);
+                return true;
+            } finally { UserContext.clear(); }
         });
-        assertThat(counter(id, "like_count")).isEqualTo(3);
-        assertThat(count("article_like")).isEqualTo(3);
-        parallel(30, i -> {
-            UserContext.setUserId(users[i % users.length]);
-            try { return articleService.like(id, false); }
-            finally { UserContext.clear(); }
-        });
-        assertThat(counter(id, "like_count")).isZero();
-        assertThat(count("article_like")).isZero();
-    }
-
-    @Test
-    void mixedLikeAndUnlikeRequestsLeaveAuditableCounts() throws Exception {
-        long id = article(alice, "Mixed likes", null);
-        parallel(40, i -> {
-            UserContext.setUserId(bob.id());
-            try { return articleService.like(id, i % 2 == 0); }
-            finally { UserContext.clear(); }
-        });
-        assertThat(counter(id, "like_count")).isEqualTo(count("article_like"));
-        assertThat(counter(id, "like_count")).isBetween(0L, 1L);
+        assertThat(counter(id, "view_count")).isZero();
     }
 
     @Test
     void corsPreflightAllowsConfiguredFrontendWithoutAuthentication() throws Exception {
-        mvc.perform(options("/article/1/like").header("Origin", "http://localhost:5173")
-                        .header("Access-Control-Request-Method", "PUT")
-                        .header("Access-Control-Request-Headers", "authorization"))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+        for (String origin : List.of("http://localhost:5173", "http://127.0.0.1:5173")) {
+            mvc.perform(options("/article/1/like").header("Origin", origin)
+                            .header("Access-Control-Request-Method", "PUT")
+                            .header("Access-Control-Request-Headers", "authorization,content-type"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
+        }
         mvc.perform(options("/article/1/like").header("Origin", "https://untrusted.example")
                         .header("Access-Control-Request-Method", "PUT"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void loopbackOriginsSupportBrowserLoginAndAuthenticatedWrites() throws Exception {
+        for (String origin : List.of("http://localhost:5173", "http://127.0.0.1:5173")) {
+            send(post("/api/user/login").header("Origin", origin), null,
+                    Map.of("username", "alice", "password", PASSWORD))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin))
+                    .andExpect(jsonPath("$.data").isString());
+            long articleId = body(send(post("/api/article/publish").header("Origin", origin), alice,
+                    Map.of("title", "Browser origin check", "content", "Created through the local frontend"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin)))
+                    .at("/data/id").asLong();
+            send(post("/api/comment/publish").header("Origin", origin), alice,
+                    Map.of("articleId", articleId, "content", "A browser comment"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
+        }
+    }
+
+    @Test
+    void untrustedOriginCannotSubmitLogin() throws Exception {
+        send(post("/api/user/login").header("Origin", "https://untrusted.example"), null,
+                Map.of("username", "alice", "password", PASSWORD))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
     }
 
     private Account account(String name) throws Exception {

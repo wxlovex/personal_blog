@@ -7,7 +7,6 @@ import lombok.Data;
 
 @Data
 public class ArticleDTO {
-    @NotBlank(message = "标题不能为空")
     @Size(max = 50, message = "标题长度不能超过50字")
     private String title;
 

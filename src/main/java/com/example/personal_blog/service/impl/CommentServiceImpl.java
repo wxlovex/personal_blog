@@ -10,6 +10,7 @@ import com.example.personal_blog.mapper.ArticleMapper;
 import com.example.personal_blog.mapper.CommentMapper;
 import com.example.personal_blog.service.CommentService;
 import com.example.personal_blog.utils.UserContext;
+import com.example.personal_blog.security.AccountQuotaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,48 +22,50 @@ import java.time.ZoneOffset;
 public class CommentServiceImpl implements CommentService {
     private final ArticleMapper articleMapper;
     private final CommentMapper commentMapper;
+    private final AccountQuotaService quota;
 
     @Override
     @Transactional
     public Comment publish(CommentDto dto) {
+        quota.lockUser();
         Long userId = UserContext.requireUserId();
-        if (articleMapper.lockById(dto.getArticleId()) == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "文章不存在");
+        if (articleMapper.lockOwnedById(dto.getArticleId(), userId) == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "记录不存在");
         }
         Comment comment = new Comment();
         comment.setArticleId(dto.getArticleId());
         comment.setUserId(userId);
         comment.setContent(dto.getContent().trim());
         comment.setCreateTime(LocalDateTime.now(ZoneOffset.UTC));
+        quota.check(AccountQuotaService.bytes(comment.getContent()), 0, 1, 0);
         commentMapper.insert(comment);
         return comment;
     }
 
     @Override
     public Page<Comment> list(Long articleId, int page, int size) {
-        if (articleMapper.selectById(articleId) == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "文章不存在");
+        Long userId = UserContext.requireUserId();
+        if (articleMapper.selectByIdWithAuthor(articleId, userId) == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "记录不存在");
         }
-        return commentMapper.listWithAuthor(new Page<>(page, size), articleId);
+        return commentMapper.listWithAuthor(new Page<>(page, size), articleId, userId);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
-        Comment comment = commentMapper.selectById(id);
-        if (comment == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "评论不存在");
-        }
-        Article article = articleMapper.lockById(comment.getArticleId());
-        if (article == null) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "文章不存在");
-        }
+        quota.lockUser();
         Long userId = UserContext.requireUserId();
-        if (!userId.equals(comment.getUserId()) && !userId.equals(article.getUserId())) {
-            throw new BusinessException(ResultCode.FORBIDDEN, "只能删除自己的评论或自己文章下的评论");
+        Comment comment = commentMapper.selectById(id);
+        if (comment == null || !userId.equals(comment.getUserId())) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "补记不存在");
+        }
+        Article article = articleMapper.lockOwnedById(comment.getArticleId(), userId);
+        if (article == null) {
+            throw new BusinessException(ResultCode.NOT_FOUND, "记录不存在");
         }
         if (commentMapper.deleteById(id) == 0) {
-            throw new BusinessException(ResultCode.NOT_FOUND, "评论不存在");
+            throw new BusinessException(ResultCode.NOT_FOUND, "补记不存在");
         }
     }
 }

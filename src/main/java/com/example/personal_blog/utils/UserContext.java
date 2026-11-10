@@ -8,6 +8,10 @@ import com.example.personal_blog.common.ResultCode;
  */
 public class UserContext {
     private static final ThreadLocal<Long> userThreadLocal = new ThreadLocal<>();
+    private static final ThreadLocal<String> sessionThreadLocal = new ThreadLocal<>();
+
+    public static void setSessionId(String id) { sessionThreadLocal.set(id); }
+    public static String getSessionId() { return sessionThreadLocal.get(); }
 
     public static void setUserId(Long userId) {
         userThreadLocal.set(userId);
@@ -27,5 +31,6 @@ public class UserContext {
 
     public static void clear() {
         userThreadLocal.remove();
+        sessionThreadLocal.remove();
     }
 }

@@ -1,7 +1,6 @@
 package com.example.personal_blog.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.example.personal_blog.common.PublicEndpoint;
 import com.example.personal_blog.common.Result;
 import com.example.personal_blog.dto.SubscribedAuthor;
 import com.example.personal_blog.dto.SubscriptionStatus;
@@ -28,7 +27,6 @@ public class SubscriptionController {
         return Result.success(subscriptionService.change(authorId, false));
     }
 
-    @PublicEndpoint
     @GetMapping("/{authorId}/subscription")
     public Result<SubscriptionStatus> status(@PathVariable @Positive Long authorId) {
         return Result.success(subscriptionService.status(authorId));

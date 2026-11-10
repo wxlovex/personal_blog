@@ -3,6 +3,8 @@ package com.example.personal_blog.utils;
 import com.example.personal_blog.common.BusinessException;
 import com.example.personal_blog.common.PublicEndpoint;
 import com.example.personal_blog.common.ResultCode;
+import com.example.personal_blog.security.AuthSessionService;
+import com.example.personal_blog.security.RequestRateGuard;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +15,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 @RequiredArgsConstructor
 public class JwtInterceptor implements HandlerInterceptor {
-    private final JwtUtil jwtUtil;
+    private final AuthSessionService sessions;
+    private final RequestRateGuard rateGuard;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -23,6 +26,8 @@ public class JwtInterceptor implements HandlerInterceptor {
             return true;
         }
         PublicEndpoint endpoint = method.getMethodAnnotation(PublicEndpoint.class);
+        response.setHeader("Cache-Control", "no-store");
+        rateGuard.check(request, method);
         // 登录/注册必须能在客户端仍携带旧 Token 时使用。
         if (endpoint != null && endpoint.ignoreToken()) {
             return true;
@@ -37,7 +42,10 @@ public class JwtInterceptor implements HandlerInterceptor {
         if (!header.startsWith("Bearer ") || header.substring(7).isBlank()) {
             throw new BusinessException(ResultCode.UNAUTHORIZED, "登录凭证格式不正确");
         }
-        UserContext.setUserId(jwtUtil.getUserId(header.substring(7).trim()));
+        JwtUtil.Identity identity = sessions.authenticate(header.substring(7).trim());
+        rateGuard.checkAuthenticated(request, method, identity.userId());
+        UserContext.setUserId(identity.userId());
+        UserContext.setSessionId(identity.sessionId());
         return true;
     }
 

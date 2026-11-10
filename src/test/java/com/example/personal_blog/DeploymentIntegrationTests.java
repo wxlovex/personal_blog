@@ -40,18 +40,18 @@ class DeploymentIntegrationTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         JsonNode article = json.readTree(published).path("data");
         long articleId = article.path("id").asLong();
-        mvc.perform(get("/api/article/detail/" + articleId)).andExpect(status().isOk())
+        mvc.perform(get("/api/article/detail/" + articleId).header("Authorization", token)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").value("Same-origin blog"));
-        mvc.perform(get("/article/list")).andExpect(status().isOk())
+        mvc.perform(get("/article/list").header("Authorization", token)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].id").value(articleId));
         mvc.perform(post("/api/comment/publish").header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("articleId", articleId, "content", "Working"))))
                 .andExpect(status().isOk());
-        mvc.perform(get("/api/comment/" + articleId)).andExpect(status().isOk())
+        mvc.perform(get("/api/comment/" + articleId).header("Authorization", token)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.records[0].content").value("Working"));
-        mvc.perform(get("/api/category/list")).andExpect(status().isOk());
-        mvc.perform(get("/api/user/subscriptions").header("Authorization", token)).andExpect(status().isOk());
+        mvc.perform(get("/api/category/list").header("Authorization", token)).andExpect(status().isOk());
+        mvc.perform(get("/api/user/subscriptions").header("Authorization", token)).andExpect(status().isGone());
         mvc.perform(post("/api/article/publish").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"denied\",\"content\":\"denied\"}"))
                 .andExpect(status().isUnauthorized());
@@ -59,7 +59,7 @@ class DeploymentIntegrationTests {
 
     @Test
     void clientRoutesForwardButUnknownApisAndAssetsStay404() throws Exception {
-        for (String path : new String[]{"/", "/login", "/register", "/publish", "/article/123"}) {
+        for (String path : new String[]{"/", "/about", "/login", "/register", "/publish", "/plaza", "/plaza/123", "/article/123", "/article/123/edit"}) {
             mvc.perform(get(path)).andExpect(status().isOk()).andExpect(forwardedUrl("/index.html"));
         }
         mvc.perform(get("/api/not-found")).andExpect(status().isNotFound());

@@ -1,9 +1,10 @@
 package com.example.personal_blog.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.example.personal_blog.common.PublicEndpoint;
 import com.example.personal_blog.common.Result;
 import com.example.personal_blog.dto.ArticleDTO;
+import com.example.personal_blog.dto.ArticleCategoryDTO;
+import com.example.personal_blog.dto.PublicationDTO;
 import com.example.personal_blog.dto.LikeStatus;
 import com.example.personal_blog.entity.Article;
 import com.example.personal_blog.service.ArticleService;
@@ -31,7 +32,18 @@ public class ArticleController {
         return Result.success(articleService.update(id, dto));
     }
 
-    @PublicEndpoint
+    @PatchMapping("/{id}/category")
+    public Result<Article> updateCategory(@PathVariable @Positive Long id,
+                                          @RequestBody @Valid ArticleCategoryDTO dto) {
+        return Result.success(articleService.updateCategory(id, dto.categoryId()));
+    }
+
+    @PutMapping("/{id}/publication")
+    public Result<Article> updatePublication(@PathVariable @Positive Long id,
+                                             @RequestBody @Valid PublicationDTO dto) {
+        return Result.success(articleService.updatePublication(id, dto.published(), dto.category()));
+    }
+
     @GetMapping("/list")
     public Result<Page<Article>> list(
             @RequestParam(defaultValue = "1") @Min(1) int page,
@@ -52,13 +64,11 @@ public class ArticleController {
         return Result.success(articleService.subscriptions(page, size, categoryId, authorId, keyword));
     }
 
-    @PublicEndpoint
     @GetMapping("/detail/{id}")
     public Result<Article> detail(@PathVariable @Positive Long id) {
         return Result.success(articleService.detail(id));
     }
 
-    @PublicEndpoint
     @GetMapping("/ranking")
     public Result<List<Article>> ranking(
             @RequestParam(defaultValue = "views") String sort,

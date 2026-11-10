@@ -12,3 +12,12 @@ blog:
   jwt:
     secret: integration-test-only-secret-at-least-32-bytes
     ttl-seconds: 3600
+  security:
+    # Existing business suites create many accounts from one mock peer.
+    # SecurityProtectionTests overrides these values to exercise actual limits.
+    login-per-minute: 100000
+    account-login-per-minute: 100000
+    registration-per-hour: 100000
+    writes-per-minute: 100000
+    reads-per-minute: 100000
+    require-verified-email-for-publication: false

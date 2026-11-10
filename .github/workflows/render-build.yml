@@ -44,7 +44,9 @@ jobs:
             --memory=512m personal-blog:verify
           curl --retry 30 --retry-delay 2 --retry-connrefused --fail http://127.0.0.1:8080/api/health
           curl --fail http://127.0.0.1:8080/login | grep 'id="app"'
-          curl --fail http://127.0.0.1:8080/api/article/list
+          test "$(curl -s -o /tmp/private-response.json -w '%{http_code}' http://127.0.0.1:8080/api/article/list)" = 401
+          curl --fail http://127.0.0.1:8080/api/plaza/articles
+          curl --fail http://127.0.0.1:8080/api/user/security-options | grep '"mailEnabled":false'
       - name: Show runtime logs
         if: always()
         run: docker logs blog || true
@@ -72,7 +74,7 @@ jobs:
           TEST_DB_URL: jdbc:mysql://127.0.0.1:4000/blog_verification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
           TEST_DB_USERNAME: root
           TEST_DB_PASSWORD: ''
-        run: mvn -B -ntp '-Dtest=PersonalBlogApplicationTests,SubscriptionIntegrationTests' test
+        run: mvn -B -ntp verify
       - name: Show TiDB logs
         if: failure()
         run: docker logs --tail 100 tidb || true

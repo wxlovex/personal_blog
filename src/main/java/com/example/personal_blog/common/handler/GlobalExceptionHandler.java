@@ -3,6 +3,7 @@ package com.example.personal_blog.common.handler;
 import com.example.personal_blog.common.BusinessException;
 import com.example.personal_blog.common.Result;
 import com.example.personal_blog.common.ResultCode;
+import com.example.personal_blog.security.RateLimitException;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,6 +22,12 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+    @ExceptionHandler(RateLimitException.class)
+    public ResponseEntity<Result<Void>> rateLimit(RateLimitException e) {
+        return ResponseEntity.status(429).header("Retry-After", Long.toString(e.getRetryAfterSeconds()))
+                .header("Cache-Control", "no-store").body(new Result<>(429, e.getMessage(), null));
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> business(BusinessException e) {
         return error(e.getResultCode(), e.getMessage());
