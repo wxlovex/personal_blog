@@ -10,6 +10,7 @@ import com.example.personal_blog.mapper.ArticleMapper;
 import com.example.personal_blog.mapper.CategoryMapper;
 import com.example.personal_blog.service.CategoryService;
 import com.example.personal_blog.utils.UserContext;
+import com.example.personal_blog.utils.TextContent;
 import com.example.personal_blog.security.AccountQuotaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
@@ -37,7 +38,7 @@ public class CategoryServiceImpl implements CategoryService {
         quota.lockUser();
         Category category = new Category();
         category.setUserId(UserContext.requireUserId());
-        category.setName(dto.name().trim());
+        category.setName(TextContent.requireVisible(dto.name(), "分类名称不能为空"));
         category.setDescription(dto.description() == null ? "" : dto.description().trim());
         category.setCreateTime(LocalDateTime.now(ZoneOffset.UTC));
         quota.check(AccountQuotaService.bytes(category.getName(), category.getDescription()), 0, 0, 1);
@@ -56,7 +57,7 @@ public class CategoryServiceImpl implements CategoryService {
         quota.lockUser();
         Category category = owned(id);
         long previousBytes = AccountQuotaService.bytes(category.getName(), category.getDescription());
-        category.setName(dto.name().trim());
+        category.setName(TextContent.requireVisible(dto.name(), "分类名称不能为空"));
         category.setDescription(dto.description() == null ? "" : dto.description().trim());
         quota.check(AccountQuotaService.bytes(category.getName(), category.getDescription()) - previousBytes, 0, 0, 0);
         try {

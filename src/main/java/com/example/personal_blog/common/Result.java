@@ -33,27 +33,6 @@ public class Result<T> {
         return new Result<>(ResultCode.SUCCESS.getCode(), ResultCode.SUCCESS.getMessage(), data);
     }
 
-    /**
-     * 失败（使用默认的 500 错误提示）
-     */
-    public static <T> Result<T> fail() {
-        return new Result<>(ResultCode.FAIL.getCode(), ResultCode.FAIL.getMessage(), null);
-    }
-
-    /**
-     * 失败（自定义错误提示，如：用户名已存在）
-     */
-    public static <T> Result<T> fail(String message) {
-        return new Result<>(ResultCode.FAIL.getCode(), message, null);
-    }
-
-    /**
-     * 失败（完全通用的自定义枚举错误）
-     */
-    public static <T> Result<T> fail(ResultCode resultCode) {
-        return new Result<>(resultCode.getCode(), resultCode.getMessage(), null);
-    }
-
     public static <T> Result<T> fail(ResultCode resultCode, String message) {
         return new Result<>(
                 resultCode.getCode(),

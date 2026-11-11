@@ -6,6 +6,7 @@ import { useAuth } from '@/composables/useAuth'
 import BlogIcon from '@/components/BlogIcon.vue'
 import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import { readArticleFile } from '@/utils/importText'
+import { hasVisibleText } from '@/utils/text'
 const router = useRouter()
 const route = useRoute()
 const { isLoggedIn } = useAuth()
@@ -60,7 +61,7 @@ async function loadCategories() {
 async function addCategory() {
   if (busy.value) return
   categoryError.value = ''
-  if (!categoryName.value.trim()) { categoryError.value = '请填写分类名称。'; return }
+  if (!hasVisibleText(categoryName.value)) { categoryError.value = '请填写分类名称。'; return }
   savingCategory.value = true
   try {
     const { data } = await categoryCreate({ name: categoryName.value.trim() })

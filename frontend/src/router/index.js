@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
-import { userMe } from '@/api'
+import { useProfile } from '@/composables/useProfile'
 
 import LoginView from '@/views/LoginView.vue'
 import RegisterView from '@/views/RegisterView.vue'
@@ -38,15 +38,15 @@ const router = createRouter({
   },
 })
 
-// Journal pages require a verified account before rendering private data.
+// API endpoints enforce authorization; transient profile failures keep the page recoverable.
 router.beforeEach(async (to) => {
   const { isLoggedIn, currentUser } = useAuth()
   if (to.name === 'login' || to.name === 'register') return
   if (to.meta.requiresAuth && isLoggedIn.value && !currentUser.value) {
     try {
-      currentUser.value = (await userMe()).data.data
-    } catch {
-      if (to.meta.requiresAuth) return { path: '/login', query: { redirect: to.fullPath } }
+      await useProfile().refreshProfile()
+    } catch (error) {
+      if (error.response?.status === 401 && !isLoggedIn.value) return false
     }
   }
   if (to.meta.requiresAuth && !isLoggedIn.value) return { path: '/login', query: { redirect: to.fullPath } }

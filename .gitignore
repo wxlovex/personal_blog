@@ -40,3 +40,7 @@ build/
 # Generated frontend build output (source snapshot is kept for Render)
 frontend/node_modules/
 frontend/dist/
+
+# Local code-review fixtures
+.review-baseline.zip
+.review-snapshot-fixture/

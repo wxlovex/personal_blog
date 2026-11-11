@@ -10,6 +10,7 @@ import com.example.personal_blog.mapper.ArticleMapper;
 import com.example.personal_blog.mapper.CommentMapper;
 import com.example.personal_blog.service.CommentService;
 import com.example.personal_blog.utils.UserContext;
+import com.example.personal_blog.utils.TextContent;
 import com.example.personal_blog.security.AccountQuotaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,7 +36,7 @@ public class CommentServiceImpl implements CommentService {
         Comment comment = new Comment();
         comment.setArticleId(dto.getArticleId());
         comment.setUserId(userId);
-        comment.setContent(dto.getContent().trim());
+        comment.setContent(TextContent.requireVisible(dto.getContent(), "补记内容不能为空"));
         comment.setCreateTime(LocalDateTime.now(ZoneOffset.UTC));
         quota.check(AccountQuotaService.bytes(comment.getContent()), 0, 1, 0);
         commentMapper.insert(comment);

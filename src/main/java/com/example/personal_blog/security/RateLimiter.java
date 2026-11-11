@@ -36,7 +36,10 @@ public class RateLimiter {
         }
         Bucket bucket = buckets.get(key);
         if (bucket == null || bucket.expiresAt <= now) {
-            if (buckets.size() >= maxKeys) throw new RateLimitException(60);
+            if (buckets.size() >= maxKeys) {
+                log.warn("限流器容量已耗尽，拒绝创建新限流键");
+                throw new RateLimitException(60);
+            }
             bucket = new Bucket(now + window.toMillis());
             buckets.put(key, bucket);
             nextCleanup = Math.min(nextCleanup, bucket.expiresAt);

@@ -9,6 +9,10 @@ public enum ResultCode {
 
     BAD_REQUEST(400,"参数错误"),
 
+    UNSUPPORTED_MEDIA_TYPE(415,"不支持的请求内容类型"),
+
+    NOT_ACCEPTABLE(406,"无法生成客户端可接受的响应"),
+
     CONFLICT(409,"资源冲突"),
 
     GONE(410,"该功能已停用"),

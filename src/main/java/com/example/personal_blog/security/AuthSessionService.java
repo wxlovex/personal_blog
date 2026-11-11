@@ -15,6 +15,7 @@ import java.time.ZoneOffset;
 @Service
 @RequiredArgsConstructor
 public class AuthSessionService {
+    private static final int MAX_SESSIONS = 20;
     private final AuthSessionMapper sessions;
     private final UserMapper users;
     private final JwtUtil jwt;
@@ -25,7 +26,9 @@ public class AuthSessionService {
         sessions.deleteExpired(userId, LocalDateTime.now(ZoneOffset.UTC));
         // Bound session storage per account, including repeated successful logins.
         var active = sessions.lockSessions(userId);
-        for (int i = 0; i <= active.size() - 20; i++) sessions.revoke(active.get(i), userId);
+        while (active.size() >= MAX_SESSIONS) {
+            sessions.revoke(active.remove(0), userId);
+        }
         String token = jwt.generateToken(userId, username);
         JwtUtil.Identity identity = jwt.verify(token);
         sessions.insert(identity.sessionId(), userId, LocalDateTime.ofInstant(identity.expiresAt(), ZoneOffset.UTC),

@@ -88,6 +88,37 @@ class PersonalBlogApplicationTests {
     }
 
     @Test
+    void registrationAndLoginShareTheSameUtf16UsernameLimit() throws Exception {
+        String supplementaryLetter = new String(Character.toChars(0x10400));
+        String accepted = supplementaryLetter.repeat(16);
+        send(post("/user/register"), null, Map.of("username", accepted, "password", PASSWORD))
+                .andExpect(status().isOk());
+        send(post("/user/login"), null, Map.of("username", accepted, "password", PASSWORD))
+                .andExpect(status().isOk());
+        send(post("/user/register"), null, Map.of("username", supplementaryLetter.repeat(17), "password", PASSWORD))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void invisibleCategoriesAndNotesAreRejectedWithoutChangingStorage() throws Exception {
+        long articleId = body(send(post("/article/publish"), alice, Map.of("title", "title", "content", "body"))
+                .andExpect(status().isOk())).at("/data/id").asLong();
+        long categoryId = body(send(post("/category"), alice, Map.of("name", "visible"))
+                .andExpect(status().isOk())).at("/data/id").asLong();
+        for (String invisible : List.of("\u00a0", "\u200b", "\u3000", "\u200d\u200c\n\u0000")) {
+            send(post("/category"), alice, Map.of("name", invisible)).andExpect(status().isBadRequest());
+            send(put("/category/" + categoryId), alice, Map.of("name", invisible)).andExpect(status().isBadRequest());
+            send(post("/comment/publish"), alice, Map.of("articleId", articleId, "content", invisible))
+                    .andExpect(status().isBadRequest());
+        }
+        send(post("/comment/publish"), alice, Map.of("articleId", articleId, "content", "家人 👩‍👩‍👧‍👦"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.content").value("家人 👩‍👩‍👧‍👦"));
+        send(get("/category/list"), alice, null).andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].name").value("visible"));
+        send(get("/comment/" + articleId), alice, null).andExpect(jsonPath("$.data.total").value(1));
+    }
+
+    @Test
     void loginAndCurrentUserDoNotExposeCredentials() throws Exception {
         send(post("/user/login"), null, Map.of("username", "alice", "password", "wrong"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value(401));
@@ -129,12 +160,26 @@ class PersonalBlogApplicationTests {
     }
 
     @Test
+    void paginationRejectsPagesAboveTheLimit() throws Exception {
+        send(get("/api/article/list").param("page", "100001"), alice, null)
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(400));
+        send(get("/api/article/list").param("page", "100000"), alice, null)
+                .andExpect(status().isOk());
+        send(get("/api/comment/1").param("page", "2147483647"), alice, null)
+                .andExpect(status().isBadRequest());
+        send(get("/api/plaza/articles").param("page", "100001"), null, null)
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void weakJwtConfigurationAndMissingIdentityAreRejected() {
         assertThatThrownBy(() -> new JwtUtil("short", 60)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new JwtUtil(TEST_SECRET, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new JwtUtil(TEST_SECRET, 2592001)).isInstanceOf(IllegalArgumentException.class);
+        assertThatCode(() -> new JwtUtil(TEST_SECRET, 2592000)).doesNotThrowAnyException();
         String missing = JWT.create().withIssuer("personal-blog")
                 .withExpiresAt(Instant.now().plusSeconds(60)).sign(Algorithm.HMAC256(TEST_SECRET));
-        assertThatThrownBy(() -> jwt.getUserId(missing)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> jwt.verify(missing)).isInstanceOf(BusinessException.class);
     }
 
     @Test
@@ -305,6 +350,18 @@ class PersonalBlogApplicationTests {
         }
         send(get("/article/detail/" + id), alice, null)
                 .andExpect(jsonPath("$.data.categoryId").value(mine));
+    }
+
+    @Test
+    void titleWhitespaceIncludesNonBreakingSpaces() throws Exception {
+        send(post("/api/article/publish"), alice, Map.of("content", "\u00A0"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("随手记"));
+        send(post("/api/article/publish"), alice, Map.of("content", "\u00A0hello"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("hello"));
+        send(post("/api/article/publish"), alice, Map.of("title", "\u00A0 hello\u00A0", "content", "正文"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("hello"));
+        send(post("/api/article/publish"), alice, Map.of("title", "\u00A0", "content", "\u00A0"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.title").value("随手记"));
     }
 
     @Test

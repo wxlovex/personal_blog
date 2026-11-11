@@ -42,10 +42,7 @@ const excerpt = computed(() => {
 .article-title:hover .icon, .article-title:focus-visible .icon { opacity: 1; transform: translate(0, 0); }
 .article-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 11px; max-width: 740px; color: var(--text-muted); font-size: .875rem; line-height: 1.85; overflow-wrap: anywhere; }
 .article-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; color: var(--text-muted); font-size: .7rem; margin-top: 17px; }
-.article-author { color: var(--text); }
 .article-meta time { font-family: var(--mono); }
-.meta-stat { display: inline-flex; align-items: center; gap: 5px; }
-.meta-stat .icon { width: 13px; height: 13px; }
 .article-actions { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
 .article-visibility { display: inline-flex; align-items: center; gap: 5px; }
 .article-visibility .icon { width: 12px; height: 12px; }

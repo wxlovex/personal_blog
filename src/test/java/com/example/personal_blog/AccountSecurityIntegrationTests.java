@@ -195,6 +195,34 @@ class AccountSecurityIntegrationTests {
     }
 
     @Test
+    void occupiedEmailProbesConsumeTheAccountBudgetAcrossPeersAndTargets() throws Exception {
+        List<Account> owners = List.of(account(), account(), account());
+        Account other = account();
+        Map<Account, String> ownerTokens = new HashMap<>();
+        for (Account owner : owners) ownerTokens.put(owner, verifyAndLogin(owner));
+        int previousLimit = security.getEmailPerHour();
+        security.setEmailPerHour(3);
+        try {
+            for (int i = 0; i < 3; i++) {
+                send(post("/api/user/email/verification"), other.token(),
+                        Map.of("email", owners.get(i).email(), "currentPassword", PASSWORD)).andExpect(status().isConflict());
+            }
+            send(post("/user/email/verification"), other.token(),
+                    Map.of("email", other.email(), "currentPassword", PASSWORD))
+                    .andExpect(status().isTooManyRequests()).andExpect(header().exists("Retry-After"));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM account_token WHERE user_id=?", Integer.class, other.id())).isZero();
+            Account anotherProber = account();
+            for (int i = 0; i < 3; i++) {
+                send(post("/api/user/email/verification"), anotherProber.token(),
+                        Map.of("email", owners.get(0).email(), "currentPassword", PASSWORD)).andExpect(status().isConflict());
+            }
+            // Rejected probes must not exhaust the legitimate owner's destination email budget.
+            send(post("/api/user/email/verification"), ownerTokens.get(owners.get(0)),
+                    Map.of("email", owners.get(0).email(), "currentPassword", PASSWORD)).andExpect(status().isOk());
+        } finally { security.setEmailPerHour(previousLimit); }
+    }
+
+    @Test
     void recoveryRevokesAllSessionsAndTheLinkCannotBeReplayedOrUsedForVerification() throws Exception {
         Account account = account();
         String login = verifyAndLogin(account);

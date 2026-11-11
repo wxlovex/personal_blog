@@ -27,7 +27,7 @@ public class PlazaController {
     @PublicEndpoint(ignoreToken = true)
     @GetMapping("/articles")
     public Result<Page<PlazaArticle>> list(
-            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "1") @Min(1) @Max(100000) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
             @RequestParam(required = false) @Pattern(regexp = "技术|日常|读书|娱乐") String category,
             @RequestParam(required = false) @Size(max = 100) String keyword) {

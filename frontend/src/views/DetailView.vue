@@ -92,7 +92,6 @@ watch(() => route.params.id, fetchDetail, { immediate: true })
 .article-header .eyebrow { margin-bottom: 18px; }
 .article-header h1 { font-size: clamp(1.85rem, 4vw, 2.6rem); line-height: 1.55; }
 .article-detail-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 24px; color: var(--text-muted); font-size: .75rem; margin-top: 26px; }
-.article-author { display: flex; align-items: center; gap: 8px; color: var(--text); }
 .author-avatar { display: grid; place-items: center; width: 26px; height: 26px; background: var(--accent-bg); border-radius: 50%; color: var(--accent); font: .75rem/1 var(--serif); }
 .meta-item { display: inline-flex; align-items: center; gap: 6px; }
 .meta-item .icon { width: 14px; height: 14px; }
@@ -107,9 +106,6 @@ watch(() => route.params.id, fetchDetail, { immediate: true })
 .article-footnote { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; padding-block: 20px; border-top: 1px solid var(--border); }
 .diary-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .last-edited { font-size: .75rem; color: var(--text-muted); }
-.article-stats { display: flex; flex-wrap: wrap; gap: 22px; font-size: .75rem; color: var(--text-muted); }
-.article-stats span { display: flex; align-items: center; gap: 7px; }
-.article-stats .icon { width: 15px; height: 15px; }
 .detail-loading { display: flex; flex-direction: column; gap: 24px; padding-top: 20px; }
 .detail-loading > span:not(.sr-only) { display: block; background: var(--bg-secondary); height: 160px; border-radius: 4px; }
 .detail-loading > span:first-child { width: 80%; height: 46px; }

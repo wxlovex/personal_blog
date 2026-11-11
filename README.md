@@ -3,6 +3,8 @@
 Java 17 / Spring Boot 3 / MyBatis-Plus / MySQL 8 的博客。日常前端工作目录为
 `D:\project\personal_blog_vite`；`frontend/` 保存用于 Render 构建的前端源码快照。
 
+源码仓库：[后端 personal_blog](https://github.com/wxlovex/personal_blog) · [前端 personal_bolg_vite](https://github.com/wxlovex/personal_bolg_vite)。
+
 公网入口：[访问博客](https://bounce-club.onrender.com)。当前使用新建云数据库，首次访问请注册账号。
 已复用原 bounce-club 免费服务，部署和公网验收记录见 [docs/deployment-status.md](docs/deployment-status.md)。
 
@@ -81,7 +83,7 @@ mvn verify
 默认使用独立的内存 H2（MySQL 模式），执行实际 SQL、MockMvc 接口测试和多线程事务测试，
 不连接开发数据库。覆盖注册重复、密码哈希、过期 Token、双账号数据隔离、越权读写、
 私有分类、搜索分页、补记、旧社交入口停用、分类迁移和删除关联数据。
-本轮实际检查结果见 [docs/verification.md](docs/verification.md)。
+最新 DeepSeek 审查、修复及验证结果见 [审查修复记录](docs/review-fixes-2026-11-11.md)；早期版本记录见 [docs/verification.md](docs/verification.md)。
 
 也可以在**专用空 MySQL 测试库**上执行同一套测试：
 
@@ -139,7 +141,7 @@ Dockerfile 自动构建 Vue 前端、执行后端测试并生成 Jar，最终镜
 
 - 写作体验：按账号保存草稿、自动保存、日期回看、全文搜索、心情与标签。
 - 个人数据：导出、备份恢复、账号注销、记录回收站。
-- 账户安全：邮箱验证、找回密码、登录限流、Token 刷新与撤销。
+- 账户安全：邮箱验证、找回密码、登录限流、Token 轮换与刷新。
 - 部署运维：HTTPS、数据库备份恢复演练、监控告警和 CI。
 
 富文本或 Markdown 必须在前端使用受信任的渲染器并进行 HTML 清理；后端保存的是原始正文。

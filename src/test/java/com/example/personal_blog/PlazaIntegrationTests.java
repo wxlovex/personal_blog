@@ -122,6 +122,21 @@ class PlazaIntegrationTests {
     }
 
     @Test
+    void withdrawingIgnoresTheCategoryWhilePublishingStillValidatesIt() throws Exception {
+        long id = article(alice, "可撤回文章", "正文");
+        publish(alice, id, "技术");
+        send(put("/api/article/" + id + "/publication"), alice, Map.of("published", false, "category", "不存在"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.published").value(false))
+                .andExpect(jsonPath("$.data.plazaCategory").isEmpty());
+        send(get("/api/plaza/articles/" + id), null, null).andExpect(status().isNotFound());
+        send(put("/api/article/" + id + "/publication"), alice, Map.of("published", true, "category", "不存在"))
+                .andExpect(status().isBadRequest());
+        send(put("/api/article/" + id + "/publication"), alice, Map.of("published", false, "category", "类".repeat(21)))
+                .andExpect(status().isBadRequest());
+        send(get("/api/article/detail/" + id), alice, null).andExpect(jsonPath("$.data.published").value(false));
+    }
+
+    @Test
     void onlyTheOwnerCanChangeVisibilityAndInvalidPublicationNeverChangesTheArticle() throws Exception {
         long id = article(alice, "Private", "Secret");
         send(put("/api/article/" + id + "/publication"), null, Map.of("published", true, "category", "技术"))

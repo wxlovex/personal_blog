@@ -5,6 +5,17 @@ import static org.assertj.core.api.Assertions.*;
 
 class AccountMailPropertiesTests {
     @Test
+    void sslAndRequiredStartTlsCannotBeEnabledTogether() {
+        AccountMailProperties properties = new AccountMailProperties();
+        properties.setSslEnabled(true);
+        properties.setTlsRequired(true);
+        assertThatThrownBy(properties::validateTransport).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("MAIL_STARTTLS_REQUIRED=false");
+        properties.setTlsRequired(false);
+        assertThatCode(properties::validateTransport).doesNotThrowAnyException();
+    }
+
+    @Test
     void mailLinksRejectUntrustedSchemesCredentialsQueryAndPath() {
         for (String address : new String[]{"http://public.example", "https://user:password@example.com", "https://example.com/path", "https://example.com?next=evil", "javascript:alert(1)"}) {
             AccountMailProperties properties = new AccountMailProperties();

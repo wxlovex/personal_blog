@@ -13,15 +13,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Locale;
 
 @Service
@@ -76,11 +72,12 @@ public class AccountSecurityService {
         User user = lockedCurrentUser();
         passwords.verify(user, request.currentPassword());
         String email = normalizeEmail(request.email());
+        // Rejected ownership probes also consume the requester's account budget.
+        limiter.acquire("verify-mail-user:" + user.getId(), security.getEmailPerHour(), Duration.ofHours(1));
         Long owner = accounts.emailOwner(email);
         if (owner != null && !owner.equals(user.getId())) {
             throw new BusinessException(ResultCode.CONFLICT, "该邮箱无法绑定，请使用其他邮箱");
         }
-        limiter.acquire("verify-mail-user:" + user.getId(), security.getEmailPerHour(), Duration.ofHours(1));
         limiter.acquire("verify-mail-target:" + hash(email), security.getEmailPerHour(), Duration.ofHours(1));
         return tokenMail(user.getId(), VERIFY, email, 30, "/account/verify-email", "行间 · 验证邮箱");
     }
@@ -168,9 +165,7 @@ public class AccountSecurityService {
 
     public static String normalizeEmail(String email) { return email.trim().toLowerCase(Locale.ROOT); }
     public static String hash(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) { throw new IllegalStateException("SHA-256 unavailable", e); }
+        return Hashing.sha256Hex(value);
     }
     private static LocalDateTime now() { return LocalDateTime.now(ZoneOffset.UTC); }
     private static BusinessException invalidLink() {

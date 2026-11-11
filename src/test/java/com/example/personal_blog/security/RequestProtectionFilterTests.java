@@ -8,6 +8,39 @@ import static org.assertj.core.api.Assertions.*;
 
 class RequestProtectionFilterTests {
     @Test
+    void readAndPreflightRequestsAreNotBufferedAndStillReceiveSecurityHeaders() throws Exception {
+        SecurityProperties properties = new SecurityProperties();
+        properties.setMaxRequestBytes(1024);
+        RequestProtectionFilter filter = new RequestProtectionFilter(properties, new ObjectMapper());
+        for (String method : new String[]{"GET", "HEAD", "OPTIONS"}) {
+            MockHttpServletRequest request = new MockHttpServletRequest(method, "/api/plaza/categories") {
+                @Override public jakarta.servlet.ServletInputStream getInputStream() {
+                    throw new AssertionError("只读和预检请求不应读取请求体");
+                }
+            };
+            request.setContent(new byte[1025]);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(request, response, (req, res) -> assertThat(req).isSameAs(request));
+            assertThat(response.getHeader("Strict-Transport-Security"))
+                    .isEqualTo("max-age=31536000; includeSubDomains");
+        }
+    }
+
+    @Test
+    void everyWriteMethodRejectsOversizedBodies() throws Exception {
+        SecurityProperties properties = new SecurityProperties();
+        properties.setMaxRequestBytes(1024);
+        RequestProtectionFilter filter = new RequestProtectionFilter(properties, new ObjectMapper());
+        for (String method : new String[]{"POST", "PUT", "PATCH", "DELETE"}) {
+            MockHttpServletRequest request = new MockHttpServletRequest(method, "/api/article/1");
+            request.setContent(new byte[1025]);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(request, response, (req, res) -> fail("超限请求不应到达应用"));
+            assertThat(response.getStatus()).isEqualTo(413);
+        }
+    }
+
+    @Test
     void unknownContentLengthCannotBypassTheByteLimit() throws Exception {
         SecurityProperties properties = new SecurityProperties();
         properties.setMaxRequestBytes(1024);

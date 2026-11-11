@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.example.personal_blog.entity.Article;
 import com.example.personal_blog.dto.PlazaArticle;
 import org.apache.ibatis.annotations.*;
-import java.util.List;
 
 @Mapper
 public interface ArticleMapper extends BaseMapper<Article> {
@@ -30,8 +29,7 @@ public interface ArticleMapper extends BaseMapper<Article> {
     @Select("<script>" + LIST_FIELDS + FILTERS + " ORDER BY a.create_time DESC, a.id DESC</script>")
     Page<Article> selectPageWithAuthor(Page<Article> page, @Param("categoryId") Long categoryId,
                                      @Param("authorId") Long authorId, @Param("keyword") String keyword,
-                                     @Param("viewerId") Long viewerId,
-                                     @Param("subscriptionsOnly") boolean subscriptionsOnly);
+                                     @Param("viewerId") Long viewerId);
 
     @Select("""
             SELECT a.*, u.username AS author_name, c.name AS category_name,
@@ -64,25 +62,6 @@ public interface ArticleMapper extends BaseMapper<Article> {
             """)
     PlazaArticle selectPlazaById(Long id);
 
-    @Select("<script>" + LIST_FIELDS + """
-            <where>a.user_id = #{viewerId}<if test="categoryId != null">AND a.category_id = #{categoryId}</if></where>
-            ORDER BY <choose><when test="sort == 'likes'">a.like_count</when>
-                <otherwise>a.view_count</otherwise></choose> DESC,
-                a.create_time DESC, a.id DESC LIMIT #{limit}
-            </script>
-            """)
-    List<Article> ranking(@Param("sort") String sort, @Param("limit") int limit,
-                          @Param("categoryId") Long categoryId, @Param("viewerId") Long viewerId);
-
-    @Select("SELECT * FROM article WHERE id = #{id} FOR UPDATE")
-    Article lockById(Long id);
-
     @Select("SELECT * FROM article WHERE id = #{id} AND user_id = #{userId} FOR UPDATE")
     Article lockOwnedById(@Param("id") Long id, @Param("userId") Long userId);
-
-    @Update("UPDATE article SET view_count = view_count + 1 WHERE id = #{id}")
-    int incrementViews(Long id);
-
-    @Update("UPDATE article SET like_count = like_count + #{delta} WHERE id = #{id}")
-    int changeLikes(@Param("id") Long id, @Param("delta") int delta);
 }

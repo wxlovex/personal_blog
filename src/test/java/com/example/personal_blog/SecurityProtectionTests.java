@@ -134,6 +134,18 @@ class SecurityProtectionTests {
     }
 
     @Test
+    void missingAccountBudgetIsSharedAcrossUsernameCaseAndPeers() throws Exception {
+        String username = "missing_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        for (int i = 0; i < 3; i++) {
+            send(post("/api/user/login"), peer(), Map.of("username", i % 2 == 0
+                    ? username : username.toUpperCase(java.util.Locale.ROOT), "password", PASSWORD))
+                    .andExpect(status().isUnauthorized());
+        }
+        send(post("/user/login"), peer(), Map.of("username", username, "password", PASSWORD))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
     void successfulLoginClearsTheAccountFailureBudget() throws Exception {
         Account account = account();
         for (int round = 0; round < 2; round++) {
@@ -178,7 +190,9 @@ class SecurityProtectionTests {
         send(get("/plaza/categories"), peer, null).andExpect(status().isTooManyRequests())
                 .andExpect(header().string("X-Content-Type-Options", "nosniff"))
                 .andExpect(header().string("X-Frame-Options", "DENY"))
-                .andExpect(header().exists("Content-Security-Policy"));
+                .andExpect(header().exists("Content-Security-Policy"))
+                .andExpect(header().string("Strict-Transport-Security", "max-age=31536000; includeSubDomains"))
+                .andExpect(header().string("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"));
     }
 
     @Test

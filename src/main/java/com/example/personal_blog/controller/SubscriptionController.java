@@ -34,7 +34,7 @@ public class SubscriptionController {
 
     @GetMapping("/subscriptions")
     public Result<Page<SubscribedAuthor>> list(
-            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "1") @Min(1) @Max(100000) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
         return Result.success(subscriptionService.list(page, size));
     }

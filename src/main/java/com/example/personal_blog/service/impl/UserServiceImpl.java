@@ -9,6 +9,7 @@ import com.example.personal_blog.entity.User;
 import com.example.personal_blog.mapper.UserMapper;
 import com.example.personal_blog.service.UserService;
 import com.example.personal_blog.security.AuthSessionService;
+import com.example.personal_blog.security.Hashing;
 import com.example.personal_blog.security.RateLimiter;
 import com.example.personal_blog.security.SecurityProperties;
 import com.example.personal_blog.utils.UserContext;
@@ -20,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.Locale;
-import org.springframework.util.DigestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.personal_blog.mapper.AccountSecurityMapper;
 
@@ -63,7 +63,7 @@ public class UserServiceImpl implements UserService {
     public String login(String username, String password) {
         User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
         String key = "login-account:" + (user == null
-                ? "missing-" + DigestUtils.md5DigestAsHex(username.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8))
+                ? "missing-" + Hashing.sha256Hex(username.toLowerCase(Locale.ROOT))
                 : user.getId());
         limiter.acquire(key, security.getAccountLoginPerMinute(), Duration.ofMinutes(1));
         // Verify the latest hash and issue the session under one user lock. A password

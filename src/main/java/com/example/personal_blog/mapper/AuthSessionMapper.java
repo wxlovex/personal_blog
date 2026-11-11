@@ -19,17 +19,11 @@ public interface AuthSessionMapper {
     @Delete("DELETE FROM auth_session WHERE user_id = #{userId} AND expires_at <= #{now}")
     void deleteExpired(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
-    @Select("SELECT COUNT(*) FROM auth_session WHERE user_id = #{userId}")
-    int countForUser(Long userId);
-
     @Delete("DELETE FROM auth_session WHERE user_id = #{userId}")
     void revokeAll(Long userId);
 
     @Select("SELECT COUNT(*) FROM auth_session WHERE user_id = #{userId} AND expires_at > #{now}")
     int activeForUser(@Param("userId") Long userId, @Param("now") LocalDateTime now);
-
-    @Select("SELECT session_id FROM auth_session WHERE user_id = #{userId} ORDER BY created_at, session_id LIMIT 1")
-    String oldestForUser(Long userId);
 
     @Select("SELECT session_id FROM auth_session WHERE user_id = #{userId} ORDER BY created_at, session_id FOR UPDATE")
     List<String> lockSessions(Long userId);

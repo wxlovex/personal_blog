@@ -116,4 +116,8 @@ export function commentPublish(data) {
   return api.post('/comment/publish', data)
 }
 
+export function commentDelete(id) {
+  return api.delete(`/comment/${id}`)
+}
+
 export default api

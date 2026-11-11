@@ -26,6 +26,9 @@ public class JwtUtil {
         if (ttlSeconds <= 0) {
             throw new IllegalArgumentException("JWT_TTL_SECONDS 必须大于 0");
         }
+        if (ttlSeconds > 2592000) {
+            throw new IllegalArgumentException("JWT_TTL_SECONDS 不能超过 2592000 秒（30 天）");
+        }
         this.algorithm = Algorithm.HMAC256(secret);
         this.ttlSeconds = ttlSeconds;
     }
@@ -36,10 +39,6 @@ public class JwtUtil {
                 .withJWTId(UUID.randomUUID().toString())
                 .withClaim("userId", userId).withClaim("username", username)
                 .withIssuedAt(now).withExpiresAt(now.plusSeconds(ttlSeconds)).sign(algorithm);
-    }
-
-    public Long getUserId(String token) {
-        return verify(token).userId();
     }
 
     public record Identity(Long userId, String sessionId, Instant expiresAt) {}

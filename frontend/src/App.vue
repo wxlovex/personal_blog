@@ -1,12 +1,18 @@
 <script setup>
 import Navbar from './components/Navbar.vue'
 import { useAuth } from '@/composables/useAuth'
+import { useProfile } from '@/composables/useProfile'
 const { isLoggedIn, token } = useAuth()
+const { profileError, loadingProfile, refreshProfile } = useProfile()
+async function retryProfile() {
+  try { await refreshProfile() } catch { /* The profile notice or API session guard handles the failure. */ }
+}
 </script>
 
 <template>
   <Navbar />
   <main id="main-content" class="page-shell site-main">
+    <p v-if="isLoggedIn && profileError" class="account-notice" role="status">{{ profileError }} <button type="button" class="btn btn-sm" :disabled="loadingProfile" @click="retryProfile">{{ loadingProfile ? '正在重试…' : '重试账号信息' }}</button></p>
     <router-view v-slot="{ Component, route }"><component :is="Component" v-if="!route.meta.requiresAuth || isLoggedIn" :key="route.fullPath + (route.meta.requiresAuth ? token : '')" /></router-view>
   </main>
   <footer class="page-shell site-footer">

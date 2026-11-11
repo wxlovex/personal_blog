@@ -46,7 +46,7 @@ public class ArticleController {
 
     @GetMapping("/list")
     public Result<Page<Article>> list(
-            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "1") @Min(1) @Max(100000) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
             @RequestParam(required = false) @Positive Long categoryId,
             @RequestParam(required = false) @Positive Long authorId,
@@ -56,7 +56,7 @@ public class ArticleController {
 
     @GetMapping("/subscriptions")
     public Result<Page<Article>> subscriptions(
-            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "1") @Min(1) @Max(100000) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size,
             @RequestParam(required = false) @Positive Long categoryId,
             @RequestParam(required = false) @Positive Long authorId,

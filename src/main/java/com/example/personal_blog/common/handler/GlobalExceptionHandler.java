@@ -5,12 +5,15 @@ import com.example.personal_blog.common.Result;
 import com.example.personal_blog.common.ResultCode;
 import com.example.personal_blog.security.RateLimitException;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.method.MethodValidationException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,6 +52,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Result<Void>> conflict(DataIntegrityViolationException e) {
+        log.warn("数据完整性冲突：{}", e.getClass().getSimpleName());
         return error(ResultCode.CONFLICT, "数据已存在或关联数据发生变化，请刷新后重试");
     }
 
@@ -62,9 +66,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(405).body(new Result<>(405, "请求方法不支持", null));
     }
 
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Result<Void>> unsupportedMediaType(HttpMediaTypeNotSupportedException e) {
+        return error(ResultCode.UNSUPPORTED_MEDIA_TYPE, ResultCode.UNSUPPORTED_MEDIA_TYPE.getMessage());
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<Void> notAcceptable(HttpMediaTypeNotAcceptableException e) {
+        return ResponseEntity.status(ResultCode.NOT_ACCEPTABLE.getCode()).build();
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result<Void>> unexpected(Exception e) {
-        log.error("系统异常", e);
+    public ResponseEntity<Result<Void>> unexpected(Exception e, HttpServletRequest request) {
+        log.error("系统异常：method={} uri={}", request.getMethod(), request.getRequestURI(), e);
         return error(ResultCode.FAIL, "服务器异常");
     }
 

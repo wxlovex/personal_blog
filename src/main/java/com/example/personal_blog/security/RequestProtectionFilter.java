@@ -13,6 +13,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 public class RequestProtectionFilter extends OncePerRequestFilter {
     private final int maxBytes;
@@ -29,10 +30,12 @@ public class RequestProtectionFilter extends OncePerRequestFilter {
         response.setHeader("X-Content-Type-Options", "nosniff");
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+        response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+        response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
         response.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self'; "
                 + "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; "
                 + "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
-        if ("OPTIONS".equals(request.getMethod())) {
+        if (!Set.of("POST", "PUT", "PATCH", "DELETE").contains(request.getMethod())) {
             chain.doFilter(request, response);
             return;
         }

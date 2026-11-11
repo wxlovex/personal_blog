@@ -25,7 +25,7 @@ public class CommentController {
 
     @GetMapping("/{articleId}")
     public Result<Page<Comment>> list(@PathVariable @Positive Long articleId,
-            @RequestParam(defaultValue = "1") @Min(1) int page,
+            @RequestParam(defaultValue = "1") @Min(1) @Max(100000) int page,
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) int size) {
         return Result.success(commentService.list(articleId, page, size));
     }

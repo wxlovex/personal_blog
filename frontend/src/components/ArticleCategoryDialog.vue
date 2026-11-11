@@ -1,4 +1,5 @@
 <script setup>
+import { hasVisibleText } from '@/utils/text'
 import { ref, computed, watch, useId } from 'vue'
 import { articleUpdateCategory, categoryList, categoryCreate } from '@/api'
 import BlogIcon from './BlogIcon.vue'
@@ -38,7 +39,7 @@ function cancel(event) { event?.preventDefault(); if (!busy.value) emit('cancel'
 async function createCategory() {
   if (busy.value || !ready.value) return
   error.value = ''
-  if (!newName.value.trim()) { error.value = '请填写新分类名称。'; return }
+  if (!hasVisibleText(newName.value)) { error.value = '请填写新分类名称。'; return }
   creating.value = true
   try {
     const { data } = await categoryCreate({ name: newName.value.trim() })

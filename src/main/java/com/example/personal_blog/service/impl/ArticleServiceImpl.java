@@ -17,6 +17,7 @@ import com.example.personal_blog.mapper.CommentMapper;
 import com.example.personal_blog.service.ArticleService;
 import com.example.personal_blog.service.CategoryService;
 import com.example.personal_blog.utils.UserContext;
+import com.example.personal_blog.utils.TextContent;
 import com.example.personal_blog.security.AccountQuotaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -128,7 +129,7 @@ public class ArticleServiceImpl implements ArticleService {
     @Override
     public Page<Article> list(int page, int size, Long categoryId, Long authorId, String keyword) {
         return articleMapper.selectPageWithAuthor(new Page<>(page, size), categoryId, authorId,
-                keyword == null ? null : keyword.trim(), UserContext.requireUserId(), false);
+                keyword == null ? null : keyword.trim(), UserContext.requireUserId());
     }
 
     @Override
@@ -172,10 +173,13 @@ public class ArticleServiceImpl implements ArticleService {
     }
 
     private String titleFor(ArticleDTO dto) {
-        if (dto.getTitle() != null && !dto.getTitle().isBlank()) return dto.getTitle().trim();
-        String firstLine = dto.getContent().strip().lines().findFirst().orElse("随手记");
+        String title = dto.getTitle() == null ? "" : TextContent.trimWhitespace(dto.getTitle());
+        if (!title.isEmpty()) return title;
+        String firstLine = TextContent.trimWhitespace(TextContent.trimWhitespace(dto.getContent()).lines().findFirst().orElse(""));
+        if (firstLine.isEmpty()) return "随手记";
         if (firstLine.length() <= 50) return firstLine;
         int end = Character.isHighSurrogate(firstLine.charAt(49)) ? 49 : 50;
         return firstLine.substring(0, end);
     }
+
 }

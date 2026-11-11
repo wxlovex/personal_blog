@@ -25,6 +25,9 @@ public class AccountMailProperties {
 
     @PostConstruct
     public void validateTransport() {
+        if (sslEnabled && tlsRequired) {
+            throw new IllegalArgumentException("SMTP SSL 与必需的 STARTTLS 不能同时启用，请设置 MAIL_STARTTLS_REQUIRED=false");
+        }
         URI base = URI.create(publicBaseUrl);
         boolean local = Set.of("localhost", "127.0.0.1", "::1", "[::1]").contains(base.getHost() == null ? "" : base.getHost());
         if (base.getHost() == null || base.getUserInfo() != null || base.getQuery() != null || base.getFragment() != null

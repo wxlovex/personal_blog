@@ -1,4 +1,5 @@
 <script setup>
+import { hasVisibleText } from '@/utils/text'
 import { ref } from 'vue'
 import { categoryCreate, categoryUpdate, categoryDelete } from '@/api'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -17,7 +18,7 @@ function edit(category) { editingId.value = category.id; name.value = category.n
 async function save() {
   if (busy.value) return
   error.value = ''
-  if (!name.value.trim()) { error.value = '请填写分类名称。'; return }
+  if (!hasVisibleText(name.value)) { error.value = '请填写分类名称。'; return }
   busy.value = true
   try {
     const payload = { name: name.value.trim() }
