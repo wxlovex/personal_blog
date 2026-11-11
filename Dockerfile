@@ -13,7 +13,7 @@ COPY database/ ./database/
 COPY --from=frontend /frontend/dist/ ./src/main/resources/static/
 RUN mvn -B -ntp verify
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=backend /build/target/personal_blog-0.0.1-SNAPSHOT.jar app.jar
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60.0 -XX:InitialRAMPercentage=15.0 -XX:+UseSerialGC -Xss512k"
